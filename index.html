@@ -354,7 +354,7 @@
 
                 const payload = {
                     contents: chatHistory,
-                    tools: [{ // Re-added the tools declaration for content_fetcher
+                    tools: [{ // Declaring content_fetcher tool for the LLM to use
                         functionDeclarations: [{
                             name: "content_fetcher_fetch",
                             description: "Fetches content from a specified source reference.",
@@ -408,10 +408,14 @@
                 } else if (result.candidates && result.candidates.length > 0 &&
                            result.candidates[0].functionCall &&
                            result.candidates[0].functionCall.name === "content_fetcher_fetch") {
-                    // If the AI decides to call the tool, we display a message indicating it.
-                    aiResponseText = "The AI is attempting to search the file based on your query...";
+                    // This block will be hit if the LLM *decides* to call the tool.
+                    // The actual tool execution happens on the backend, and its result is then returned by the LLM.
+                    // If it's just showing "freezing," it means the LLM isn't providing a follow-up response
+                    // after deciding to use the tool. This is likely an environmental limitation.
+                    aiResponseText = "The AI is processing your request by searching the file. Please provide a more specific query if you are still facing issues.";
                 } else {
                     console.warn("Unexpected API response structure or functionCall not recognized:", result);
+                    aiResponseText = "I encountered an unexpected response from the AI. Could you please try rephrasing your question?";
                 }
 
                 messages.push({ text: aiResponseText, sender: 'ai' });
@@ -424,8 +428,6 @@
                 updateUI();
             }
         }
-
-        // Removed the searchInFile function entirely.
 
         // Event Listeners
         sendButton.addEventListener('click', sendMessage);
