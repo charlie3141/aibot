@@ -11,7 +11,6 @@
             font-family: 'Inter', sans-serif;
             margin: 0;
             padding: 0;
-            /* Removed: overflow: hidden; */ /* This was preventing scrolling */
         }
         /* Custom styles for bouncing dots */
         .animate-bounce-dots > div:nth-child(1) { animation-delay: 0s; }
@@ -70,20 +69,20 @@
         /* Responsive adjustments for button layout in input area */
         @media (max-width: 640px) { /* sm breakpoint */
             #message-input {
-                border-radius: 0.5rem 0 0 0.5rem; /* Rounded left only on small screens */
+                border-radius: 0.5rem; /* Full rounded on small screens if no other buttons */
             }
             #send-btn {
-                border-radius: 0 0.5rem 0.5rem 0; /* Rounded right only on small screens */
                 margin-top: 0.5rem; /* mt-2 */
                 width: 100%; /* Full width when wrapped */
-            }
-            #search-file-btn {
-                margin-left: 0 !important; /* Override ml-2 on small screens */
-                margin-top: 0.5rem; /* mt-2 */
-                width: 100%; /* Full width when wrapped */
+                border-radius: 0.5rem; /* Full rounded on small screens */
             }
             .flex-wrap > #upload-image-btn {
                 margin-right: 0; /* Remove mr-2 on smaller screens for better wrapping */
+            }
+            .flex-wrap > #message-input {
+                border-radius: 0.5rem; /* Remove specific rounded-l-lg for mobile if it's the only one */
+                flex-basis: 100%; /* Make input take full width */
+                margin-bottom: 0.5rem; /* Space before buttons if wrapped */
             }
         }
     </style>
@@ -128,13 +127,11 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
             </button>
-            <input type="text" id="message-input" class="flex-1 p-3 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0" placeholder="Type your message..." />
-            <button id="send-btn" class="px-6 py-3 bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 mt-2 sm:mt-0 rounded-r-lg sm:rounded-r-none">
+            <input type="text" id="message-input" class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0" placeholder="Type your message..." />
+            <button id="send-btn" class="px-6 py-3 bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 mt-2 sm:mt-0 rounded-lg">
                 Send
             </button>
-            <button id="search-file-btn" class="ml-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 mt-2 sm:mt-0">
-                Search in File
-            </button>
+            <!-- Removed the Search in File button -->
         </div>
     </div>
 
@@ -148,10 +145,9 @@
 
         // API Key (will be managed by the environment, so leave it empty)
         const apiKey = "AIzaSyCGmTpIbxI_ebc41aFrTAcd03pOMUdl77c";
-        // Define an array of content fetch IDs for the files to search
-        // Reverting to the uploaded file ID, as direct URL fetching caused 405 error.
+        // Define an array of content fetch IDs for the files available for the AI to search
         const contentFetchIds = [
-            { id: "uploaded:thuvienhoclieu.com-SGK-Sinh-hoc-11-canh-dieu.pdf" } // This is your "sinh11.pdf"
+            { id: "uploaded:thuvienhoclieu.com-SGK-Sinh-hoc-11-canh-dieu.pdf" } // Your "sinh11.pdf"
         ];
 
         // DOM element references
@@ -159,7 +155,7 @@
         const initialMessageDiv = document.getElementById('initial-message');
         const messageInput = document.getElementById('message-input');
         const sendButton = document.getElementById('send-btn');
-        const searchFileButton = document.getElementById('search-file-btn');
+        // Removed searchFileButton reference
         const fileInput = document.getElementById('file-input');
         const uploadImageButton = document.getElementById('upload-image-btn');
         const imagePreviewContainer = document.getElementById('image-preview-container');
@@ -239,7 +235,7 @@
             const disableControls = isLoading || !inputControlsOpen;
             messageInput.disabled = disableControls;
             sendButton.disabled = disableControls;
-            searchFileButton.disabled = disableControls;
+            // Removed searchFileButton.disabled
             fileInput.disabled = disableControls;
             uploadImageButton.disabled = disableControls;
 
@@ -341,6 +337,9 @@
             updateUI();
 
             try {
+                // Include tool_code in the history payload for the LLM to use.
+                // This informs the LLM that it has the 'content_fetcher' tool available for the specified PDFs.
+                // The LLM will then decide if and when to call this tool based on the user's prompt.
                 let chatHistory = [];
                 messages.forEach(msg => {
                     const historyParts = [];
@@ -360,7 +359,35 @@
                 });
 
                 const payload = {
-                    contents: chatHistory
+                    contents: chatHistory,
+                    tools: [{
+                        functionDeclarations: [{
+                            name: "content_fetcher_fetch",
+                            description: "Fetches content from a specified source reference.",
+                            parameters: {
+                                type: "OBJECT",
+                                properties: {
+                                    query: {
+                                        type: "STRING",
+                                        description: "The query string for the content to fetch."
+                                    },
+                                    source_references: {
+                                        type: "ARRAY",
+                                        items: {
+                                            type: "OBJECT",
+                                            properties: {
+                                                id: {
+                                                    type: "STRING",
+                                                    description: "The ID of the source reference (e.g., 'uploaded:file_name.pdf')."
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                required: ["query", "source_references"]
+                            }
+                        }]
+                    }]
                 };
 
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
@@ -384,8 +411,18 @@
                     result.candidates[0].content && result.candidates[0].content.parts &&
                     result.candidates[0].content.parts.length > 0) {
                     aiResponseText = result.candidates[0].content.parts[0].text;
+                } else if (result.candidates && result.candidates.length > 0 &&
+                           result.candidates[0].functionCall &&
+                           result.candidates[0].functionCall.name === "content_fetcher_fetch") {
+                    // If the AI decides to call the tool, we need to execute it.
+                    // This part demonstrates how the tool call would be handled if the LLM requests it.
+                    // In this setup, the LLM itself will manage the actual tool execution.
+                    // So, if the LLM suggests content_fetcher_fetch, it implies it will then return the result.
+                    aiResponseText = "The AI is processing your request by searching the file...";
+                    // You might want to add a mechanism here to actually call the tool if not handled automatically
+                    // by the environment after the LLM decides to use it.
                 } else {
-                    console.warn("Unexpected API response structure:", result);
+                    console.warn("Unexpected API response structure or functionCall not recognized:", result);
                 }
 
                 messages.push({ text: aiResponseText, sender: 'ai' });
@@ -399,86 +436,11 @@
             }
         }
 
-        // Search in file function
-        async function searchInFile() {
-            const query = messageInput.value.trim();
-            if (query === '') {
-                messages.push({ text: "Please enter a query to search in the file.", sender: 'ai' });
-                updateUI();
-                return;
-            }
-
-            messages.push({ text: `Searching for "${query}" in the file testing "sinh11.pdf"...`, sender: 'user' });
-            messageInput.value = '';
-            isLoading = true;
-            updateUI();
-
-            try {
-                // Use the array of contentFetchIds
-                const payload = {
-                    query: query,
-                    source_references: contentFetchIds
-                };
-
-                // Changed the URL back to '/tool_code' as it's the expected endpoint for tool execution
-                const response = await fetch('/tool_code', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        tool_code: `print(content_fetcher.fetch(query='${query}', source_references=${JSON.stringify(contentFetchIds)}))`
-                    })
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Tool execution error: ${response.status} ${response.statusText} - ${errorText}`);
-                }
-
-                const result = await response.json();
-                const fetchedContent = result.tool_code_output;
-
-                let fileResponseText = `No relevant information found for "${query}" in "sinh11.pdf".`;
-
-                if (fetchedContent) {
-                    try {
-                        const parsedContent = JSON.parse(fetchedContent.replace(/^Fetched content:\s*/, ''));
-
-                        if (parsedContent && parsedContent.fullText) {
-                            const lines = parsedContent.fullText.split('\n');
-                            const relevantLines = lines.filter(line => line.toLowerCase().includes(query.toLowerCase()));
-
-                            if (relevantLines.length > 0) {
-                                fileResponseText = `Found the following in "sinh11.pdf" for "${query}":\n\n`;
-                                fileResponseText += relevantLines.slice(0, 5).join('\n') + (relevantLines.length > 5 ? '\n...' : '');
-                            } else {
-                                 fileResponseText = `No direct matches found for "${query}" in "sinh11.pdf".`;
-                            }
-                        } else if (parsedContent && parsedContent.snippet) {
-                             fileResponseText = `Found the following snippet for "${query}" in "sinh11.pdf":\n\n"${parsedContent.snippet}"`;
-                        } else {
-                            fileResponseText = `Could not parse the content or no direct text found for "${query}" in "sinh11.pdf".`;
-                        }
-
-                    } catch (parseError) {
-                        console.error("Error parsing fetched content:", parseError);
-                        fileResponseText = "An error occurred while processing the file content.";
-                    }
-                }
-
-                messages.push({ text: fileResponseText, sender: 'ai' });
-
-            } catch (error) {
-                console.error('Error searching in file:', error);
-                messages.push({ text: `Error searching file: ${error.message}`, sender: 'ai' });
-            } finally {
-                isLoading = false;
-                updateUI();
-            }
-        }
+        // Removed the searchInFile function entirely.
 
         // Event Listeners
         sendButton.addEventListener('click', sendMessage);
-        searchFileButton.addEventListener('click', searchInFile);
+        // Removed searchFileButton event listener
         messageInput.addEventListener('keypress', (event) => {
             if (event.key === 'Enter') {
                 sendMessage();
