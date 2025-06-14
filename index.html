@@ -11,11 +11,81 @@
             font-family: 'Inter', sans-serif;
             margin: 0;
             padding: 0;
+            overflow: hidden; /* Prevent body scroll when chat is active if needed, or rely on flex */
         }
         /* Custom styles for bouncing dots */
         .animate-bounce-dots > div:nth-child(1) { animation-delay: 0s; }
         .animate-bounce-dots > div:nth-child(2) { animation-delay: 0.1s; }
         .animate-bounce-dots > div:nth-child(3) { animation-delay: 0.2s; }
+
+        /* Style for the main input area that slides up/down */
+        #main-input-area {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: #fff;
+            border-top: 1px solid #e2e8f0; /* border-gray-200 */
+            box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-lg */
+            border-top-left-radius: 0.5rem; /* rounded-t-lg */
+            border-top-right-radius: 0.5rem; /* rounded-t-lg */
+            transform: translateY(100%); /* Start completely off-screen at the bottom */
+            opacity: 0; /* Start invisible */
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+            pointer-events: none; /* Make it unclickable when hidden */
+            z-index: 40; /* Ensure it's below the FAB when hidden, but above main content when active */
+        }
+
+        #main-input-area.active {
+            transform: translateY(0); /* Slide up to be visible */
+            opacity: 1; /* Become fully visible */
+            pointer-events: auto; /* Make it clickable when active */
+        }
+
+        /* Style for the Floating Action Button (FAB) */
+        #fab-button {
+            position: fixed;
+            top: 25vh; /* Approximately 25% screen height from the top */
+            right: 1rem; /* 16px from the right */
+            background-color: #8B5CF6; /* purple-600, adjusted for contrast */
+            border-radius: 50%;
+            width: 64px; /* w-16 */
+            height: 64px; /* h-16 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow-lg */
+            z-index: 50; /* Ensure FAB is above main-input-area when it's hidden */
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        #fab-button img {
+            width: 40px; /* w-10 */
+            height: 40px; /* h-10 */
+            border-radius: 50%; /* object-cover is good, ensure it's round */
+            object-fit: cover;
+        }
+
+        /* Responsive adjustments for button layout in input area */
+        @media (max-width: 640px) { /* sm breakpoint */
+            #message-input {
+                border-radius: 0.5rem 0 0 0.5rem; /* Rounded left only on small screens */
+            }
+            #send-btn {
+                border-radius: 0 0.5rem 0.5rem 0; /* Rounded right only on small screens */
+                margin-top: 0.5rem; /* mt-2 */
+                width: 100%; /* Full width when wrapped */
+            }
+            #search-file-btn {
+                margin-left: 0 !important; /* Override ml-2 on small screens */
+                margin-top: 0.5rem; /* mt-2 */
+                width: 100%; /* Full width when wrapped */
+            }
+            .flex-wrap > #upload-image-btn {
+                margin-right: 0; /* Remove mr-2 on smaller screens for better wrapping */
+            }
+        }
     </style>
 </head>
 <body class="flex flex-col min-h-screen bg-gray-100">
@@ -25,16 +95,21 @@
         <h1 class="text-3xl font-bold text-center">AI Chatbot</h1>
     </header>
 
-    <!-- Chat Area -->
+    <!-- Chat Area (always visible, takes remaining space) -->
     <div id="chat-area" class="flex-1 overflow-y-auto p-4 space-y-4">
         <div id="initial-message" class="text-center text-gray-500 mt-10">
-            Start a conversation! Type your message, upload an image, or search the file.
+            Start a conversation! Click the logo button to begin chatting.
         </div>
     </div>
 
-    <!-- Input and Image Preview Area -->
-    <div class="p-4 bg-white border-t border-gray-200 shadow-lg rounded-t-lg">
-        <div id="image-preview-container" class="hidden justify-center mb-4">
+    <!-- Floating Action Button (FAB) -->
+    <div id="fab-button">
+        <img src="logo.png" alt="Logo" />
+    </div>
+
+    <!-- Main Input Area - This will slide up/down -->
+    <div id="main-input-area">
+        <div id="image-preview-container" class="hidden justify-center mb-4 p-4">
             <div class="relative">
                 <img id="image-preview" src="" alt="Image Preview" class="max-w-xs h-auto rounded-md border border-gray-300 shadow-sm" style="max-height: 150px;" />
                 <button id="remove-image-btn" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs" aria-label="Remove image">
@@ -45,7 +120,7 @@
             </div>
         </div>
 
-        <div class="flex flex-wrap items-center">
+        <div class="flex flex-wrap items-center p-4">
             <!-- Hidden file input -->
             <input type="file" id="file-input" accept="image/*" class="hidden" />
             <button id="upload-image-btn" class="p-3 mr-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500" aria-label="Upload Image">
@@ -69,6 +144,7 @@
         let isLoading = false;
         let selectedImageFile = null;
         let imagePreviewUrl = null;
+        let inputControlsOpen = false; // New state to control visibility of input/preview area
 
         // API Key (will be managed by the environment, so leave it empty)
         const apiKey = "";
@@ -85,6 +161,8 @@
         const imagePreviewContainer = document.getElementById('image-preview-container');
         const imagePreviewElement = document.getElementById('image-preview');
         const removeImageButton = document.getElementById('remove-image-btn');
+        const fabButton = document.getElementById('fab-button');
+        const mainInputArea = document.getElementById('main-input-area'); // Reference to the sliding input area
 
         // Function to render simple Markdown (bold and newlines)
         function renderMarkdown(text) {
@@ -98,9 +176,9 @@
         // Function to update the UI based on current state
         function updateUI() {
             chatArea.innerHTML = ''; // Clear existing messages
-
             if (messages.length === 0) {
                 initialMessageDiv.style.display = 'block';
+                initialMessageDiv.textContent = 'Start a conversation! Click the logo button to begin chatting.';
             } else {
                 initialMessageDiv.style.display = 'none';
                 messages.forEach((msg) => {
@@ -153,14 +231,15 @@
             // Scroll to the bottom
             chatArea.scrollTop = chatArea.scrollHeight;
 
-            // Update input and button states
-            messageInput.disabled = isLoading;
-            sendButton.disabled = isLoading;
-            searchFileButton.disabled = isLoading;
-            fileInput.disabled = isLoading;
-            uploadImageButton.disabled = isLoading;
+            // Update input and button states based on overall loading state and inputControlsOpen
+            const disableControls = isLoading || !inputControlsOpen;
+            messageInput.disabled = disableControls;
+            sendButton.disabled = disableControls;
+            searchFileButton.disabled = disableControls;
+            fileInput.disabled = disableControls;
+            uploadImageButton.disabled = disableControls;
 
-            // Update image preview
+            // Update image preview visibility
             if (imagePreviewUrl) {
                 imagePreviewElement.src = imagePreviewUrl;
                 imagePreviewContainer.classList.remove('hidden');
@@ -172,6 +251,26 @@
             }
         }
 
+        // Toggle visibility of the main input area
+        function toggleInputControlsVisibility() {
+            inputControlsOpen = !inputControlsOpen;
+            if (inputControlsOpen) {
+                mainInputArea.classList.add('active');
+                fabButton.style.opacity = '0';
+                fabButton.style.pointerEvents = 'none'; // Make FAB unclickable
+                // Delay focus slightly to ensure the element is in place and keyboard appears
+                setTimeout(() => {
+                    messageInput.focus();
+                }, 350);
+            } else {
+                mainInputArea.classList.remove('active');
+                fabButton.style.opacity = '1';
+                fabButton.style.pointerEvents = 'auto'; // Make FAB clickable
+                messageInput.blur(); // Hide keyboard
+            }
+            updateUI();
+        }
+
         // Handle image file selection
         fileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
@@ -179,12 +278,11 @@
                 selectedImageFile = file;
                 const reader = new FileReader();
                 reader.onloadend = () => {
-                    imagePreviewUrl = reader.result; // Set image preview URL
+                    imagePreviewUrl = reader.result;
                     updateUI();
                 };
-                reader.readAsDataURL(file); // Read file as Data URL (Base64)
-                // Clear the file input value to allow selecting the same file again
-                fileInput.value = '';
+                reader.readAsDataURL(file);
+                fileInput.value = ''; // Clear the file input value
             } else {
                 selectedImageFile = null;
                 imagePreviewUrl = null;
@@ -209,7 +307,6 @@
             const inputText = messageInput.value.trim();
             if (inputText === '' && !selectedImageFile) return;
 
-            // Prepare message parts for the user message
             const userMessageParts = [];
             if (inputText !== '') {
                 userMessageParts.push({ text: inputText });
@@ -220,7 +317,7 @@
                 base64ImageData = await new Promise((resolve) => {
                     const reader = new FileReader();
                     reader.onloadend = () => {
-                        resolve(reader.result.split(',')[1]); // Get only the base64 data part
+                        resolve(reader.result.split(',')[1]);
                     };
                     reader.readAsDataURL(selectedImageFile);
                 });
@@ -232,16 +329,14 @@
                 });
             }
 
-            // Add user message to local state
             messages.push({ text: inputText, sender: 'user', image: imagePreviewUrl, base64Data: base64ImageData });
             messageInput.value = '';
             selectedImageFile = null;
             imagePreviewUrl = null;
             isLoading = true;
-            updateUI(); // Update UI immediately after user message
+            updateUI();
 
             try {
-                // Prepare chat history for the API call
                 let chatHistory = [];
                 messages.forEach(msg => {
                     const historyParts = [];
@@ -296,7 +391,7 @@
                 messages.push({ text: `Error: ${error.message}`, sender: 'ai' });
             } finally {
                 isLoading = false;
-                updateUI(); // Update UI after AI response or error
+                updateUI();
             }
         }
 
@@ -384,8 +479,29 @@
             }
         });
 
+        // FAB and outside click listeners
+        fabButton.addEventListener('click', (event) => {
+            event.stopPropagation(); // Prevent click from immediately bubbling to document
+            toggleInputControlsVisibility();
+        });
+
+        // Use a 'click' listener on the document to detect clicks outside the active area
+        document.addEventListener('click', (event) => {
+            // Check if the input controls are open AND the click was not inside the main input area AND not on the FAB itself
+            if (inputControlsOpen && !mainInputArea.contains(event.target) && !fabButton.contains(event.target)) {
+                toggleInputControlsVisibility();
+            }
+        });
+
+
         // Initial UI update on page load
-        window.onload = updateUI;
+        window.onload = () => {
+            updateUI();
+            // Ensure main input area starts hidden and FAB starts visible
+            mainInputArea.classList.remove('active');
+            fabButton.style.opacity = '1';
+            fabButton.style.pointerEvents = 'auto';
+        };
     </script>
 </body>
 </html>
