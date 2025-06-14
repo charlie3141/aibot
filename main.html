@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chatbot</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        /* Custom styles for bouncing dots */
+        .animate-bounce-dots > div:nth-child(1) { animation-delay: 0s; }
+        .animate-bounce-dots > div:nth-child(2) { animation-delay: 0.1s; }
+        .animate-bounce-dots > div:nth-child(3) { animation-delay: 0.2s; }
+    </style>
+</head>
+<body class="flex flex-col h-screen bg-gray-100">
+
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-purple-600 to-blue-500 text-white p-4 shadow-md rounded-b-lg">
+        <h1 class="text-3xl font-bold text-center">AI Chatbot</h1>
+    </header>
+
+    <!-- Chat Area -->
+    <div id="chat-area" class="flex-1 overflow-y-auto p-4 space-y-4">
+        <div id="initial-message" class="text-center text-gray-500 mt-10">
+            Start a conversation! Type your message, upload an image, or search the file.
+        </div>
+    </div>
+
+    <!-- Input and Image Preview Area -->
+    <div class="p-4 bg-white border-t border-gray-200 shadow-lg rounded-t-lg">
+        <div id="image-preview-container" class="hidden justify-center mb-4">
+            <div class="relative">
+                <img id="image-preview" src="" alt="Image Preview" class="max-w-xs h-auto rounded-md border border-gray-300 shadow-sm" style="max-height: 150px;" />
+                <button id="remove-image-btn" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs" aria-label="Remove image">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-center">
+            <!-- Hidden file input -->
+            <input type="file" id="file-input" accept="image/*" class="hidden" />
+            <button id="upload-image-btn" class="p-3 mr-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500" aria-label="Upload Image">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+            </button>
+            <input type="text" id="message-input" class="flex-1 p-3 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0" placeholder="Type your message..." />
+            <button id="send-btn" class="px-6 py-3 bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 mt-2 sm:mt-0 rounded-r-lg sm:rounded-r-none">
+                Send
+            </button>
+            <button id="search-file-btn" class="ml-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 mt-2 sm:mt-0">
+                Search in File
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Global state variables
+        let messages = [];
+        let isLoading = false;
+        let selectedImageFile = null;
+        let imagePreviewUrl = null;
+
+        // API Key (will be managed by the environment)
+        const apiKey = "";
+        const pdfContentFetchId = "uploaded:thuvienhoclieu.com-SGK-Sinh-hoc-11-canh-dieu.pdf";
+
+        // DOM element references
+        const chatArea = document.getElementById('chat-area');
+        const initialMessageDiv = document.getElementById('initial-message');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-btn');
+        const searchFileButton = document.getElementById('search-file-btn');
+        const fileInput = document.getElementById('file-input');
+        const uploadImageButton = document.getElementById('upload-image-btn');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const imagePreviewElement = document.getElementById('image-preview');
+        const removeImageButton = document.getElementById('remove-image-btn');
+
+        // Function to render simple Markdown (bold and newlines)
+        function renderMarkdown(text) {
+            // Replace **text** with <strong>text</strong>
+            let htmlText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            // Replace newlines with <br />
+            htmlText = htmlText.replace(/\n/g, '<br />');
+            return htmlText;
+        }
+
+        // Function to update the UI based on current state
+        function updateUI() {
+            chatArea.innerHTML = ''; // Clear existing messages
+
+            if (messages.length === 0) {
+                initialMessageDiv.style.display = 'block';
+            } else {
+                initialMessageDiv.style.display = 'none';
+                messages.forEach((msg) => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`;
+
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = `max-w-xl p-3 rounded-lg shadow-md ${
+                        msg.sender === 'user'
+                            ? 'bg-blue-500 text-white rounded-br-none'
+                            : 'bg-white text-gray-800 rounded-bl-none'
+                    }`;
+
+                    if (msg.image) {
+                        const imgElement = document.createElement('img');
+                        imgElement.src = msg.image;
+                        imgElement.alt = "Uploaded";
+                        imgElement.className = "max-w-full h-auto rounded-md mb-2 border border-gray-300";
+                        imgElement.style.maxHeight = '200px';
+                        contentDiv.appendChild(imgElement);
+                    }
+
+                    if (msg.text) {
+                        const textDiv = document.createElement('div');
+                        textDiv.innerHTML = renderMarkdown(msg.text); // Render Markdown
+                        contentDiv.appendChild(textDiv);
+                    }
+
+                    messageDiv.appendChild(contentDiv);
+                    chatArea.appendChild(messageDiv);
+                });
+            }
+
+            // Display loading indicator
+            if (isLoading) {
+                const loadingDiv = document.createElement('div');
+                loadingDiv.className = "flex justify-start";
+                loadingDiv.innerHTML = `
+                    <div class="max-w-xl p-3 rounded-lg shadow-md bg-white text-gray-800 rounded-bl-none">
+                        <div class="flex items-center space-x-2 animate-bounce-dots">
+                            <div class="w-3 h-3 bg-gray-400 rounded-full animate-bounce"></div>
+                            <div class="w-3 h-3 bg-gray-400 rounded-full animate-bounce"></div>
+                            <div class="w-3 h-3 bg-gray-400 rounded-full animate-bounce"></div>
+                        </div>
+                    </div>
+                `;
+                chatArea.appendChild(loadingDiv);
+            }
+
+            // Scroll to the bottom
+            chatArea.scrollTop = chatArea.scrollHeight;
+
+            // Update input and button states
+            messageInput.disabled = isLoading;
+            sendButton.disabled = isLoading;
+            searchFileButton.disabled = isLoading;
+            fileInput.disabled = isLoading;
+            uploadImageButton.disabled = isLoading;
+
+            // Update image preview
+            if (imagePreviewUrl) {
+                imagePreviewElement.src = imagePreviewUrl;
+                imagePreviewContainer.classList.remove('hidden');
+                imagePreviewContainer.classList.add('flex');
+            } else {
+                imagePreviewContainer.classList.add('hidden');
+                imagePreviewContainer.classList.remove('flex');
+                imagePreviewElement.src = ''; // Clear src when no image
+            }
+        }
+
+        // Handle image file selection
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                selectedImageFile = file;
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    imagePreviewUrl = reader.result; // Set image preview URL
+                    updateUI();
+                };
+                reader.readAsDataURL(file); // Read file as Data URL (Base64)
+                // Clear the file input value to allow selecting the same file again
+                fileInput.value = '';
+            } else {
+                selectedImageFile = null;
+                imagePreviewUrl = null;
+                updateUI();
+            }
+        });
+
+        // Trigger file input click
+        uploadImageButton.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // Remove image preview
+        removeImageButton.addEventListener('click', () => {
+            selectedImageFile = null;
+            imagePreviewUrl = null;
+            updateUI();
+        });
+
+        // Send message function
+        async function sendMessage() {
+            const inputText = messageInput.value.trim();
+            if (inputText === '' && !selectedImageFile) return;
+
+            // Prepare message parts for the user message
+            const userMessageParts = [];
+            if (inputText !== '') {
+                userMessageParts.push({ text: inputText });
+            }
+
+            let base64ImageData = null;
+            if (selectedImageFile) {
+                base64ImageData = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        resolve(reader.result.split(',')[1]); // Get only the base64 data part
+                    };
+                    reader.readAsDataURL(selectedImageFile);
+                });
+                userMessageParts.push({
+                    inlineData: {
+                        mimeType: selectedImageFile.type,
+                        data: base64ImageData
+                    }
+                });
+            }
+
+            // Add user message to local state
+            messages.push({ text: inputText, sender: 'user', image: imagePreviewUrl, base64Data: base64ImageData });
+            messageInput.value = '';
+            selectedImageFile = null;
+            imagePreviewUrl = null;
+            isLoading = true;
+            updateUI(); // Update UI immediately after user message
+
+            try {
+                // Prepare chat history for the API call
+                let chatHistory = [];
+                messages.forEach(msg => {
+                    const historyParts = [];
+                    if (msg.text) {
+                        historyParts.push({ text: msg.text });
+                    }
+                    if (msg.image && msg.base64Data) {
+                         historyParts.push({
+                            inlineData: {
+                                mimeType: msg.image.startsWith('data:image/jpeg') ? 'image/jpeg' :
+                                          msg.image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
+                                data: msg.base64Data
+                            }
+                        });
+                    }
+                    chatHistory.push({ role: msg.sender === 'user' ? 'user' : 'model', parts: historyParts });
+                });
+
+                const payload = {
+                    contents: chatHistory
+                };
+
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error("API Error:", errorData);
+                    throw new Error(`API error: ${response.status} ${response.statusText} - ${errorData.error?.message || 'Unknown error'}`);
+                }
+
+                const result = await response.json();
+
+                let aiResponseText = "Sorry, I couldn't get a response.";
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    aiResponseText = result.candidates[0].content.parts[0].text;
+                } else {
+                    console.warn("Unexpected API response structure:", result);
+                }
+
+                messages.push({ text: aiResponseText, sender: 'ai' });
+
+            } catch (error) {
+                console.error('Error sending message:', error);
+                messages.push({ text: `Error: ${error.message}`, sender: 'ai' });
+            } finally {
+                isLoading = false;
+                updateUI(); // Update UI after AI response or error
+            }
+        }
+
+        // Search in file function
+        async function searchInFile() {
+            const query = messageInput.value.trim();
+            if (query === '') {
+                messages.push({ text: "Please enter a query to search in the file.", sender: 'ai' });
+                updateUI();
+                return;
+            }
+
+            messages.push({ text: `Searching for "${query}" in the file...`, sender: 'user' });
+            messageInput.value = '';
+            isLoading = true;
+            updateUI();
+
+            try {
+                const payload = {
+                    query: query,
+                    source_references: [{ id: pdfContentFetchId }]
+                };
+
+                const response = await fetch('/tool_code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tool_code: `print(content_fetcher.fetch(query='${query}', source_references=[{'id': '${pdfContentFetchId}'}]))`
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Tool execution error: ${response.status} ${response.statusText} - ${errorText}`);
+                }
+
+                const result = await response.json();
+                const fetchedContent = result.tool_code_output;
+
+                let fileResponseText = `No relevant information found for "${query}" in the file.`;
+
+                if (fetchedContent) {
+                    try {
+                        const parsedContent = JSON.parse(fetchedContent.replace(/^Fetched content:\s*/, ''));
+
+                        if (parsedContent && parsedContent.fullText) {
+                            const lines = parsedContent.fullText.split('\n');
+                            const relevantLines = lines.filter(line => line.toLowerCase().includes(query.toLowerCase()));
+
+                            if (relevantLines.length > 0) {
+                                fileResponseText = `Found the following in the document for "${query}":\n\n`;
+                                fileResponseText += relevantLines.slice(0, 5).join('\n') + (relevantLines.length > 5 ? '\n...' : '');
+                            } else {
+                                 fileResponseText = `No direct matches found for "${query}" in the document.`;
+                            }
+                        } else if (parsedContent && parsedContent.snippet) {
+                             fileResponseText = `Found the following snippet for "${query}" in the document:\n\n"${parsedContent.snippet}"`;
+                        } else {
+                            fileResponseText = `Could not parse the content or no direct text found for "${query}".`;
+                        }
+
+                    } catch (parseError) {
+                        console.error("Error parsing fetched content:", parseError);
+                        fileResponseText = "An error occurred while processing the file content.";
+                    }
+                }
+
+                messages.push({ text: fileResponseText, sender: 'ai' });
+
+            } catch (error) {
+                console.error('Error searching in file:', error);
+                messages.push({ text: `Error searching file: ${error.message}`, sender: 'ai' });
+            } finally {
+                isLoading = false;
+                updateUI();
+            }
+        }
+
+        // Event Listeners
+        sendButton.addEventListener('click', sendMessage);
+        searchFileButton.addEventListener('click', searchInFile);
+        messageInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Initial UI update on page load
+        window.onload = updateUI;
+    </script>
+</body>
+</html>
