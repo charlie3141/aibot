@@ -149,9 +149,9 @@
         // API Key (will be managed by the environment, so leave it empty)
         const apiKey = "AIzaSyCGmTpIbxI_ebc41aFrTAcd03pOMUdl77c";
         // Define an array of content fetch IDs for the files to search
-        // Using the direct URL provided by the user
+        // Reverting to the uploaded file ID, as direct URL fetching caused 405 error.
         const contentFetchIds = [
-            { id: "https://docs.google.com/viewerng/viewer?url=https://thuvienhoclieu.com/wp-content/uploads/2023/01/thuvienhoclieu.com-SGK-Sinh-hoc-11-canh-dieu.pdf&hl=en" }
+            { id: "uploaded:thuvienhoclieu.com-SGK-Sinh-hoc-11-canh-dieu.pdf" } // This is your "sinh11.pdf"
         ];
 
         // DOM element references
@@ -408,7 +408,7 @@
                 return;
             }
 
-            messages.push({ text: `Searching for "${query}" in the file "sinh11.pdf"...`, sender: 'user' });
+            messages.push({ text: `Searching for "${query}" in the file testing "sinh11.pdf"...`, sender: 'user' });
             messageInput.value = '';
             isLoading = true;
             updateUI();
