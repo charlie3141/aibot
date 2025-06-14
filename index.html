@@ -66,6 +66,23 @@
             object-fit: cover;
         }
 
+        /* Settings Button positioning */
+        #settings-btn {
+            position: absolute;
+            top: 1rem; /* 16px from the top */
+            left: 1rem; /* 16px from the left */
+            background-color: rgba(255, 255, 255, 0.2); /* Slightly transparent white */
+            color: white;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            z-index: 1000; /* Ensure it's above the header and FAB */
+            transition: background-color 0.2s ease;
+        }
+        #settings-btn:hover {
+            background-color: rgba(255, 255, 255, 0.4);
+        }
+
         /* Responsive adjustments for button layout in input area */
         @media (max-width: 640px) { /* sm breakpoint */
             #message-input {
@@ -89,9 +106,21 @@
 <body class="flex flex-col min-h-screen bg-gray-100">
 
     <!-- Header -->
-    <header class="bg-gradient-to-r from-purple-600 to-blue-500 text-white p-4 shadow-md rounded-b-lg">
+    <header class="bg-gradient-to-r from-purple-600 to-blue-500 text-white p-4 shadow-md rounded-b-lg relative">
         <h1 class="text-3xl font-bold text-center">AI Chatbot</h1>
+        <!-- Settings Button -->
+        <button id="settings-btn" aria-label="Settings">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37a1.724 1.724 0 002.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+        </button>
     </header>
+
+    <!-- Persona Status Indicator -->
+    <div id="persona-status" class="text-center text-gray-600 text-sm mt-2">
+        Persona: On
+    </div>
 
     <!-- Chat Area (always visible, takes remaining space) -->
     <div id="chat-area" class="flex-1 overflow-y-auto p-4 space-y-4">
@@ -140,10 +169,10 @@
         let selectedImageFile = null;
         let imagePreviewUrl = null;
         let inputControlsOpen = false; // New state to control visibility of input/preview area
+        let isPersonaEnabled = true; // New state: Persona mode is ON by default
 
         // Optional: Set an initial command to define the AI's persona or specific instructions.
         // This command will be sent to the AI in the chat history but will not be visible in the UI.
-        // Example: "You are a helpful and friendly assistant who enjoys explaining biology concepts. Always refer to yourself as 'BioBot'."
         const initialPersonaCommand = `
         **I. Core Persona Assignment & Role Definition:**
 
@@ -192,7 +221,6 @@ This task presents a unique and exciting opportunity to showcase your advanced c
 
         // API Key (will be managed by the environment, so leave it empty)
         const apiKey = "AIzaSyCGmTpIbxI_ebc41aFrTAcd03pOMUdl77c";
-        // Removed contentFetchIds as direct tool invocation for file content is not working as expected.
 
         // DOM element references
         const chatArea = document.getElementById('chat-area');
@@ -206,6 +234,8 @@ This task presents a unique and exciting opportunity to showcase your advanced c
         const removeImageButton = document.getElementById('remove-image-btn');
         const fabButton = document.getElementById('fab-button');
         const mainInputArea = document.getElementById('main-input-area'); // Reference to the sliding input area
+        const settingsButton = document.getElementById('settings-btn'); // New: Settings button
+        const personaStatusDiv = document.getElementById('persona-status'); // New: Persona status indicator
 
         // Function to render simple Markdown (bold and newlines)
         function renderMarkdown(text) {
@@ -291,6 +321,9 @@ This task presents a unique and exciting opportunity to showcase your advanced c
                 imagePreviewContainer.classList.remove('flex');
                 imagePreviewElement.src = ''; // Clear src when no image
             }
+
+            // Update persona status indicator
+            personaStatusDiv.textContent = 'Persona: ' + (isPersonaEnabled ? 'On' : 'Off');
         }
 
         // Toggle visibility of the main input area
@@ -311,6 +344,12 @@ This task presents a unique and exciting opportunity to showcase your advanced c
                 messageInput.blur(); // Hide keyboard
             }
             updateUI();
+        }
+
+        // Function to toggle persona mode
+        function togglePersonaMode() {
+            isPersonaEnabled = !isPersonaEnabled;
+            updateUI(); // Update UI to reflect persona status
         }
 
         // Handle image file selection
@@ -374,13 +413,12 @@ This task presents a unique and exciting opportunity to showcase your advanced c
             // Create chat history for the API call
             let chatHistoryForApi = [];
 
-            // Prepend the persona command as the very first user message for context, if it exists.
-            // This message is sent to the AI but is NOT displayed in the user interface.
-            if (initialPersonaCommand) {
+            // Prepend the persona command as the very first user message for context, if it exists and is enabled.
+            if (initialPersonaCommand && isPersonaEnabled) {
                 chatHistoryForApi.push({ role: "user", parts: [{ text: initialPersonaCommand }] });
             }
 
-            // Add previous messages (only text parts) to the API history
+            // Add previous messages to the API history
             messages.forEach(msg => {
                 const historyParts = [];
                 if (msg.text) {
@@ -409,6 +447,15 @@ This task presents a unique and exciting opportunity to showcase your advanced c
             isLoading = true;
             updateUI();
 
+            // Set a timeout to potentially reset isLoading if no response comes back.
+            const loadingTimeout = setTimeout(() => {
+                if (isLoading) { // Only if still loading
+                    messages.push({ text: "It's taking longer than expected. Please try rephrasing your question or check your internet connection.", sender: 'ai' });
+                    isLoading = false;
+                    updateUI();
+                }
+            }, 15000); // 15 seconds timeout
+
             try {
                 const payload = {
                     contents: chatHistoryForApi, // Use the dynamically constructed chat history
@@ -430,6 +477,9 @@ This task presents a unique and exciting opportunity to showcase your advanced c
 
                 const result = await response.json();
 
+                // Clear the timeout if a response is received successfully
+                clearTimeout(loadingTimeout);
+
                 let aiResponseText = "Sorry, I couldn't get a response.";
                 if (result.candidates && result.candidates.length > 0 &&
                     result.candidates[0].content && result.candidates[0].content.parts &&
@@ -437,16 +487,18 @@ This task presents a unique and exciting opportunity to showcase your advanced c
                     aiResponseText = result.candidates[0].content.parts[0].text;
                 } else {
                     console.warn("Unexpected API response structure or no content found:", result);
-                    aiResponseText = "I encountered an unexpected response from the AI. Could you please try rephrasing your question?";
+                    aiResponseText = "I received an unexpected response structure. Could you please try rephrasing?";
                 }
 
                 messages.push({ text: aiResponseText, sender: 'ai' });
 
             } catch (error) {
+                // Clear the timeout even on error
+                clearTimeout(loadingTimeout);
                 console.error('Error sending message:', error);
                 messages.push({ text: `Error: ${error.message}`, sender: 'ai' });
             } finally {
-                isLoading = false;
+                isLoading = false; // Ensure isLoading is always reset
                 updateUI();
             }
         }
@@ -465,10 +517,13 @@ This task presents a unique and exciting opportunity to showcase your advanced c
             toggleInputControlsVisibility();
         });
 
+        // New: Settings button event listener
+        settingsButton.addEventListener('click', togglePersonaMode);
+
         // Use a 'click' listener on the document to detect clicks outside the active area
         document.addEventListener('click', (event) => {
-            // Check if the input controls are open AND the click was not inside the main input area AND not on the FAB itself
-            if (inputControlsOpen && !mainInputArea.contains(event.target) && !fabButton.contains(event.target)) {
+            // Check if the input controls are open AND the click was not inside the main input area AND not on the FAB or settings button itself
+            if (inputControlsOpen && !mainInputArea.contains(event.target) && !fabButton.contains(event.target) && !settingsButton.contains(event.target)) {
                 toggleInputControlsVisibility();
             }
         });
