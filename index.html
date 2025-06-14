@@ -11,7 +11,7 @@
             font-family: 'Inter', sans-serif;
             margin: 0;
             padding: 0;
-            overflow: hidden; /* Prevent body scroll when chat is active if needed, or rely on flex */
+            /* Removed: overflow: hidden; */ /* This was preventing scrolling */
         }
         /* Custom styles for bouncing dots */
         .animate-bounce-dots > div:nth-child(1) { animation-delay: 0s; }
@@ -147,7 +147,7 @@
         let inputControlsOpen = false; // New state to control visibility of input/preview area
 
         // API Key (will be managed by the environment, so leave it empty)
-        const apiKey = "AIzaSyCGmTpIbxI_ebc41aFrTAcd03pOMUdl77c";
+        const apiKey = "";
         const pdfContentFetchId = "uploaded:thuvienhoclieu.com-SGK-Sinh-hoc-11-canh-dieu.pdf";
 
         // DOM element references
