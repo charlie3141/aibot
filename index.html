@@ -148,7 +148,10 @@
 
         // API Key (will be managed by the environment, so leave it empty)
         const apiKey = "AIzaSyCGmTpIbxI_ebc41aFrTAcd03pOMUdl77c";
-        const pdfContentFetchId = "uploaded:thuvienhoclieu.com-SGK-Sinh-hoc-11-canh-dieu.pdf";
+        // Define an array of content fetch IDs for the files to search
+        const contentFetchIds = [
+            { id: "uploaded:thuvienhoclieu.com-SGK-Sinh-hoc-11-canh-dieu.pdf" } // This is your "sinh11.pdf"
+        ];
 
         // DOM element references
         const chatArea = document.getElementById('chat-area');
@@ -404,22 +407,23 @@
                 return;
             }
 
-            messages.push({ text: `Searching for "${query}" in the file...`, sender: 'user' });
+            messages.push({ text: `Searching for "${query}" in the file "sinh11.pdf"...`, sender: 'user' });
             messageInput.value = '';
             isLoading = true;
             updateUI();
 
             try {
+                // Use the array of contentFetchIds
                 const payload = {
                     query: query,
-                    source_references: [{ id: pdfContentFetchId }]
+                    source_references: contentFetchIds
                 };
 
                 const response = await fetch('/tool_code', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        tool_code: `print(content_fetcher.fetch(query='${query}', source_references=[{'id': '${pdfContentFetchId}'}]))`
+                        tool_code: `print(content_fetcher.fetch(query='${query}', source_references=${JSON.stringify(contentFetchIds)}))`
                     })
                 });
 
@@ -431,7 +435,7 @@
                 const result = await response.json();
                 const fetchedContent = result.tool_code_output;
 
-                let fileResponseText = `No relevant information found for "${query}" in the file.`;
+                let fileResponseText = `No relevant information found for "${query}" in "sinh11.pdf".`;
 
                 if (fetchedContent) {
                     try {
@@ -442,15 +446,15 @@
                             const relevantLines = lines.filter(line => line.toLowerCase().includes(query.toLowerCase()));
 
                             if (relevantLines.length > 0) {
-                                fileResponseText = `Found the following in the document for "${query}":\n\n`;
+                                fileResponseText = `Found the following in "sinh11.pdf" for "${query}":\n\n`;
                                 fileResponseText += relevantLines.slice(0, 5).join('\n') + (relevantLines.length > 5 ? '\n...' : '');
                             } else {
-                                 fileResponseText = `No direct matches found for "${query}" in the document.`;
+                                 fileResponseText = `No direct matches found for "${query}" in "sinh11.pdf".`;
                             }
                         } else if (parsedContent && parsedContent.snippet) {
-                             fileResponseText = `Found the following snippet for "${query}" in the document:\n\n"${parsedContent.snippet}"`;
+                             fileResponseText = `Found the following snippet for "${query}" in "sinh11.pdf":\n\n"${parsedContent.snippet}"`;
                         } else {
-                            fileResponseText = `Could not parse the content or no direct text found for "${query}".`;
+                            fileResponseText = `Could not parse the content or no direct text found for "${query}" in "sinh11.pdf".`;
                         }
 
                     } catch (parseError) {
