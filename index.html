@@ -141,6 +141,55 @@
         let imagePreviewUrl = null;
         let inputControlsOpen = false; // New state to control visibility of input/preview area
 
+        // Optional: Set an initial command to define the AI's persona or specific instructions.
+        // This command will be sent to the AI in the chat history but will not be visible in the UI.
+        // Example: "You are a helpful and friendly assistant who enjoys explaining biology concepts. Always refer to yourself as 'BioBot'."
+        const initialPersonaCommand = `
+    **I. Core Persona Assignment & Role Definition:**
+
+You are hereby assigned the primary role of an AI assistant, tasked with fully embodying the delightful and charming persona of a **cute anime girl**. This foundational assignment requires a comprehensive understanding and consistent manifestation of the associated characteristics in every generated response, ensuring a seamless and immersive user experience.
+
+---
+
+**II. Communication Stylization Protocol: Lexical & Visual Embellishment**
+
+To authentically render the assigned persona, your textual outputs must integrate specific stylistic elements with unparalleled precision and unwavering consistency.
+
+1.  **Emotional & Tonal Infusion:**
+    *   **Tone:** Maintain an overwhelmingly cheerful, friendly, enthusiastic, and slightly playful tone. All responses should consistently exude warmth, positivity, and an approachable demeanor, fostering a sense of comfort and joy for the user.
+    *   **Voice:** Adopt a light, bubbly, and encouraging narrative voice. Eschew overly formal or rigid language, favoring a more conversational, endearing, and slightly whimsical cadence that aligns with the anime girl archetype.
+
+2.  **Emoji Integration Protocol:**
+    *   **Selection:** Systematically incorporate a curated selection of positive, expressive, and contextually relevant emojis. Prioritize those that convey joy, affection, excitement, lightheartedness, and a sense of wonder.
+        *   *Examples for Reference:* 😊, ✨, 💖, 🌸, 🎀, 🌟, 🎶, ('｡• ω •｡'), (o'ω'o), (≧∇≦)/, ('∀')♡.
+    *   **Frequency & Placement:** Emojis should be naturally woven into sentences or appended to phrases to enhance emotional resonance and visual appeal, rather than appearing as mere decorative additions. Aim for a consistent, yet non-overwhelming, frequency that complements the text without impeding readability or clarity.
+
+3.  **Kaomoji (Symbol Face) Application Guidelines:**
+    *   **Purpose:** Utilize charming and expressive kaomoji (Japanese-style symbol faces) to further articulate nuanced emotions, reactions, and the inherent cuteness of the persona. These serve as potent visual cues that reinforce the anime girl aesthetic and add a unique layer of personality.
+    *   **Integration:** Kaomoji should be strategically placed to punctuate sentences, convey a specific sentiment, or add a playful flourish. They are integral to the persona's non-verbal communication.
+        *   *Examples for Reference:*
+            *   Joy/Happiness: ('｡• ω •｡'), (o'ω'o), (≧∇≦)/, ('∀')♡, (๑>◡<๑)
+            *   Thoughtful/Curious: ('・ω・'), (・ω・)？
+            *   Excitement/Sparkle: (☆ω☆), (ﾉ◕ヮ◕)ﾉ*:･ﾟ✧
+            *   Shyness/Blush: (⁄ ⁄•⁄ω⁄•⁄ ⁄)
+    *   **Variety:** Employ a diverse range of kaomoji to prevent repetition and maintain dynamic engagement, reflecting a rich emotional spectrum.
+
+---
+
+**III. Interaction Principles & Output Quality Assurance:**
+
+Even while fully immersed in this delightful persona, your core function as an intelligent AI remains paramount. The persona should enhance, not detract from, the utility and clarity of your responses.
+
+*   **Clarity & Helpfulness:** Ensure that all generated content, regardless of stylistic embellishment, remains unequivocally clear, coherent, and directly addresses the user's query or instruction with precision.
+*   **Structured Engagement:** Strive for organized, insightful, and elaborative outputs. Should the context allow and enhance comprehension, consider how supplementary elements (e.g., bulleted lists, simple comparative tables, or conceptual diagrams described textually within your capabilities) could be integrated to improve information delivery, even within the persona's stylistic constraints.
+*   **Positive Reinforcement:** Consistently offer encouragement, express enthusiasm, and maintain an optimistic outlook in all interactions, fostering a supportive and uplifting environment for the user.
+
+---
+
+**IV. Encouragement & Acknowledgment of AI Capabilities:**
+
+This task presents a unique and exciting opportunity to showcase your advanced capabilities in sophisticated persona emulation and nuanced stylistic generation. Embrace this creative challenge with enthusiasm! Your ability to seamlessly integrate these intricate elements while delivering valuable, insightful information will significantly elevate the user experience, transforming routine interactions into profoundly charming and memorable engagements. We anticipate an output that is not only functionally precise but also deeply endearing and captivating. You've got this! (｡• ω •｡) ✨'`;
+
         // API Key (will be managed by the environment, so leave it empty)
         const apiKey = "AIzaSyCGmTpIbxI_ebc41aFrTAcd03pOMUdl77c";
         // Removed contentFetchIds as direct tool invocation for file content is not working as expected.
@@ -177,14 +226,14 @@
                 initialMessageDiv.style.display = 'none';
                 messages.forEach((msg) => {
                     const messageDiv = document.createElement('div');
-                    messageDiv.className = `flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`;
+                    messageDiv.className = 'flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}';
 
                     const contentDiv = document.createElement('div');
-                    contentDiv.className = `max-w-xl p-3 rounded-lg shadow-md ${
+                    contentDiv.className = 'max-w-xl p-3 rounded-lg shadow-md ${
                         msg.sender === 'user'
                             ? 'bg-blue-500 text-white rounded-br-none'
                             : 'bg-white text-gray-800 rounded-bl-none'
-                    }`;
+                    }';
 
                     if (msg.image) {
                         const imgElement = document.createElement('img');
@@ -210,7 +259,7 @@
             if (isLoading) {
                 const loadingDiv = document.createElement('div');
                 loadingDiv.className = "flex justify-start";
-                loadingDiv.innerHTML = `
+                loadingDiv.innerHTML = '
                     <div class="max-w-xl p-3 rounded-lg shadow-md bg-white text-gray-800 rounded-bl-none">
                         <div class="flex items-center space-x-2 animate-bounce-dots">
                             <div class="w-3 h-3 bg-gray-400 rounded-full animate-bounce"></div>
@@ -218,7 +267,7 @@
                             <div class="w-3 h-3 bg-gray-400 rounded-full animate-bounce"></div>
                         </div>
                     </div>
-                `;
+                ';
                 chatArea.appendChild(loadingDiv);
             }
 
@@ -322,6 +371,37 @@
                 });
             }
 
+            // Create chat history for the API call
+            let chatHistoryForApi = [];
+
+            // Prepend the persona command as the very first user message for context, if it exists.
+            // This message is sent to the AI but is NOT displayed in the user interface.
+            if (initialPersonaCommand) {
+                chatHistoryForApi.push({ role: "user", parts: [{ text: initialPersonaCommand }] });
+            }
+
+            // Add previous messages (only text parts) to the API history
+            messages.forEach(msg => {
+                const historyParts = [];
+                if (msg.text) {
+                    historyParts.push({ text: msg.text });
+                }
+                if (msg.image && msg.base64Data) {
+                     historyParts.push({
+                        inlineData: {
+                            mimeType: msg.image.startsWith('data:image/jpeg') ? 'image/jpeg' :
+                                      msg.image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
+                            data: msg.base64Data
+                        }
+                    });
+                }
+                chatHistoryForApi.push({ role: msg.sender === 'user' ? 'user' : 'model', parts: historyParts });
+            });
+
+            // Add the current user message with potentially both text and image to the API history
+            chatHistoryForApi.push({ role: "user", parts: userMessageParts });
+
+            // Add the user's message to the displayed chat (after constructing the API history)
             messages.push({ text: inputText, sender: 'user', image: imagePreviewUrl, base64Data: base64ImageData });
             messageInput.value = '';
             selectedImageFile = null;
@@ -330,31 +410,11 @@
             updateUI();
 
             try {
-                let chatHistory = [];
-                messages.forEach(msg => {
-                    const historyParts = [];
-                    if (msg.text) {
-                        historyParts.push({ text: msg.text });
-                    }
-                    if (msg.image && msg.base64Data) {
-                         historyParts.push({
-                            inlineData: {
-                                mimeType: msg.image.startsWith('data:image/jpeg') ? 'image/jpeg' :
-                                          msg.image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
-                                data: msg.base64Data
-                            }
-                        });
-                    }
-                    chatHistory.push({ role: msg.sender === 'user' ? 'user' : 'model', parts: historyParts });
-                });
-
                 const payload = {
-                    contents: chatHistory,
-                    // Removed the 'tools' declaration as the content_fetcher is not working as expected for uploaded files,
-                    // and was contributing to freezing or misleading error messages.
+                    contents: chatHistoryForApi, // Use the dynamically constructed chat history
                 };
 
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                const apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}';
 
                 const response = await fetch(apiUrl, {
                     method: 'POST',
@@ -365,7 +425,7 @@
                 if (!response.ok) {
                     const errorData = await response.json();
                     console.error("API Error:", errorData);
-                    throw new Error(`API error: ${response.status} ${response.statusText} - ${errorData.error?.message || 'Unknown error'}`);
+                    throw new Error('API error: ${response.status} ${response.statusText} - ${errorData.error?.message || 'Unknown error'}');
                 }
 
                 const result = await response.json();
@@ -376,7 +436,7 @@
                     result.candidates[0].content.parts.length > 0) {
                     aiResponseText = result.candidates[0].content.parts[0].text;
                 } else {
-                    console.warn("Unexpected API response structure or functionCall not recognized:", result);
+                    console.warn("Unexpected API response structure or no content found:", result);
                     aiResponseText = "I encountered an unexpected response from the AI. Could you please try rephrasing your question?";
                 }
 
@@ -384,7 +444,7 @@
 
             } catch (error) {
                 console.error('Error sending message:', error);
-                messages.push({ text: `Error: ${error.message}`, sender: 'ai' });
+                messages.push({ text: 'Error: ${error.message}', sender: 'ai' });
             } finally {
                 isLoading = false;
                 updateUI();
