@@ -144,7 +144,10 @@
 
         // API Key (will be managed by the environment, so leave it empty)
         const apiKey = "AIzaSyCGmTpIbxI_ebc41aFrTAcd03pOMUdl77c";
-        // Removed contentFetchIds as direct tool invocation for file content is not working as expected.
+        // Define an array of content fetch IDs for the files available for the AI to search
+        const contentFetchIds = [
+            { id: "uploaded:sinh11.pdf" } // Changed the file access name to sinh11.pdf
+        ];
 
         // DOM element references
         const chatArea = document.getElementById('chat-area');
@@ -351,7 +354,34 @@
 
                 const payload = {
                     contents: chatHistory,
-                    // The 'tools' declaration is removed as the content_fetcher is not working as expected for uploaded files.
+                    tools: [{ // Re-added the tools declaration for content_fetcher
+                        functionDeclarations: [{
+                            name: "content_fetcher_fetch",
+                            description: "Fetches content from a specified source reference.",
+                            parameters: {
+                                type: "OBJECT",
+                                properties: {
+                                    query: {
+                                        type: "STRING",
+                                        description: "The query string for the content to fetch."
+                                    },
+                                    source_references: {
+                                        type: "ARRAY",
+                                        items: {
+                                            type: "OBJECT",
+                                            properties: {
+                                                id: {
+                                                    type: "STRING",
+                                                    description: "The ID of the source reference (e.g., 'uploaded:file_name.pdf')."
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                required: ["query", "source_references"]
+                            }
+                        }]
+                    }]
                 };
 
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
@@ -375,6 +405,11 @@
                     result.candidates[0].content && result.candidates[0].content.parts &&
                     result.candidates[0].content.parts.length > 0) {
                     aiResponseText = result.candidates[0].content.parts[0].text;
+                } else if (result.candidates && result.candidates.length > 0 &&
+                           result.candidates[0].functionCall &&
+                           result.candidates[0].functionCall.name === "content_fetcher_fetch") {
+                    // If the AI decides to call the tool, we display a message indicating it.
+                    aiResponseText = "The AI is attempting to search the file based on your query...";
                 } else {
                     console.warn("Unexpected API response structure or functionCall not recognized:", result);
                 }
