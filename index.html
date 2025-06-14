@@ -407,7 +407,7 @@
                 return;
             }
 
-            messages.push({ text: `Searching for "${query}" in the file "sinh11.pdf"...`, sender: 'user' });
+            messages.push({ text: `Searching for "${query}" in the file,testing "sinh11.pdf"...`, sender: 'user' });
             messageInput.value = '';
             isLoading = true;
             updateUI();
@@ -419,8 +419,8 @@
                     source_references: contentFetchIds
                 };
 
-                // Changed the URL to '/api/v1/user-code/tool_code' which is a common endpoint for proxying tool calls
-                const response = await fetch('/api/v1/user-code/tool_code', {
+                // Changed the URL back to '/tool_code' as it's the expected endpoint for tool execution
+                const response = await fetch('/tool_code', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
