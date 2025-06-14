@@ -419,7 +419,8 @@
                     source_references: contentFetchIds
                 };
 
-                const response = await fetch('/tool_code', {
+                // Changed the URL to '/api/v1/user-code/tool_code' which is a common endpoint for proxying tool calls
+                const response = await fetch('/api/v1/user-code/tool_code', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
