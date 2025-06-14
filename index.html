@@ -131,7 +131,6 @@
             <button id="send-btn" class="px-6 py-3 bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 mt-2 sm:mt-0 rounded-lg">
                 Send
             </button>
-            <!-- Removed the Search in File button -->
         </div>
     </div>
 
@@ -145,17 +144,13 @@
 
         // API Key (will be managed by the environment, so leave it empty)
         const apiKey = "AIzaSyCGmTpIbxI_ebc41aFrTAcd03pOMUdl77c";
-        // Define an array of content fetch IDs for the files available for the AI to search
-        const contentFetchIds = [
-            { id: "uploaded:thuvienhoclieu.com-SGK-Sinh-hoc-11-canh-dieu.pdf" } // Your "sinh11.pdf"
-        ];
+        // Removed contentFetchIds as direct tool invocation for file content is not working as expected.
 
         // DOM element references
         const chatArea = document.getElementById('chat-area');
         const initialMessageDiv = document.getElementById('initial-message');
         const messageInput = document.getElementById('message-input');
         const sendButton = document.getElementById('send-btn');
-        // Removed searchFileButton reference
         const fileInput = document.getElementById('file-input');
         const uploadImageButton = document.getElementById('upload-image-btn');
         const imagePreviewContainer = document.getElementById('image-preview-container');
@@ -235,7 +230,6 @@
             const disableControls = isLoading || !inputControlsOpen;
             messageInput.disabled = disableControls;
             sendButton.disabled = disableControls;
-            // Removed searchFileButton.disabled
             fileInput.disabled = disableControls;
             uploadImageButton.disabled = disableControls;
 
@@ -337,9 +331,6 @@
             updateUI();
 
             try {
-                // Include tool_code in the history payload for the LLM to use.
-                // This informs the LLM that it has the 'content_fetcher' tool available for the specified PDFs.
-                // The LLM will then decide if and when to call this tool based on the user's prompt.
                 let chatHistory = [];
                 messages.forEach(msg => {
                     const historyParts = [];
@@ -360,34 +351,7 @@
 
                 const payload = {
                     contents: chatHistory,
-                    tools: [{
-                        functionDeclarations: [{
-                            name: "content_fetcher_fetch",
-                            description: "Fetches content from a specified source reference.",
-                            parameters: {
-                                type: "OBJECT",
-                                properties: {
-                                    query: {
-                                        type: "STRING",
-                                        description: "The query string for the content to fetch."
-                                    },
-                                    source_references: {
-                                        type: "ARRAY",
-                                        items: {
-                                            type: "OBJECT",
-                                            properties: {
-                                                id: {
-                                                    type: "STRING",
-                                                    description: "The ID of the source reference (e.g., 'uploaded:file_name.pdf')."
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                                required: ["query", "source_references"]
-                            }
-                        }]
-                    }]
+                    // The 'tools' declaration is removed as the content_fetcher is not working as expected for uploaded files.
                 };
 
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
@@ -411,16 +375,6 @@
                     result.candidates[0].content && result.candidates[0].content.parts &&
                     result.candidates[0].content.parts.length > 0) {
                     aiResponseText = result.candidates[0].content.parts[0].text;
-                } else if (result.candidates && result.candidates.length > 0 &&
-                           result.candidates[0].functionCall &&
-                           result.candidates[0].functionCall.name === "content_fetcher_fetch") {
-                    // If the AI decides to call the tool, we need to execute it.
-                    // This part demonstrates how the tool call would be handled if the LLM requests it.
-                    // In this setup, the LLM itself will manage the actual tool execution.
-                    // So, if the LLM suggests content_fetcher_fetch, it implies it will then return the result.
-                    aiResponseText = "The AI is processing your request by searching the file...";
-                    // You might want to add a mechanism here to actually call the tool if not handled automatically
-                    // by the environment after the LLM decides to use it.
                 } else {
                     console.warn("Unexpected API response structure or functionCall not recognized:", result);
                 }
@@ -440,7 +394,6 @@
 
         // Event Listeners
         sendButton.addEventListener('click', sendMessage);
-        // Removed searchFileButton event listener
         messageInput.addEventListener('keypress', (event) => {
             if (event.key === 'Enter') {
                 sendMessage();
