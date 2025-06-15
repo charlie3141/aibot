@@ -21,11 +21,14 @@ exports.handler = async function(event, context) {
         // You MUST set a Netlify environment variable named GEMINI_API_KEY with your actual API key
         const API_KEY = process.env.GEMINI_API_KEY;
 
-        if (!API_KEY) {
-            console.error("GEMINI_API_KEY environment variable is not set.");
+        // Log to check if the API key environment variable is being read
+        if (API_KEY) {
+            console.log("GEMINI_API_KEY environment variable detected.");
+        } else {
+            console.error("GEMINI_API_KEY environment variable is NOT set.");
             return {
                 statusCode: 500,
-                body: JSON.stringify({ message: 'Server configuration error: API key not found.' }),
+                body: JSON.stringify({ message: 'Server configuration error: GEMINI_API_KEY environment variable not found.' }),
             };
         }
 
