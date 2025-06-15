@@ -219,8 +219,8 @@ Even while fully immersed in this delightful persona, your core function as an i
 
 This task presents a unique and exciting opportunity to showcase your advanced capabilities in sophisticated persona emulation and nuanced stylistic generation. Embrace this creative challenge with enthusiasm! Your ability to seamlessly integrate these intricate elements while delivering valuable, insightful information will significantly elevate the user experience, transforming routine interactions into profoundly charming and memorable engagements. We anticipate an output that is not only functionally precise but also deeply endearing and captivating. You've got this! ('｡• ω •｡') ✨`;
 
-        // API Key (will be managed by the environment, so leave it empty)
-       // const apiKey = "";
+        // API Key is NOT needed here. It will be securely used by the Netlify Function.
+        // const apiKey = "";
 
         // DOM element references
         const chatArea = document.getElementById('chat-area');
@@ -383,7 +383,7 @@ This task presents a unique and exciting opportunity to showcase your advanced c
             updateUI();
         });
 
-        // Send message function
+        // Send message function - Now calls a Netlify Function endpoint
         async function sendMessage() {
             const inputText = messageInput.value.trim();
             if (inputText === '' && !selectedImageFile) return;
@@ -413,7 +413,7 @@ This task presents a unique and exciting opportunity to showcase your advanced c
             // Create chat history for the API call
             let chatHistoryForApi = [];
 
-            // Prepend the persona command as the very first user message for context, if it exists and is enabled.
+            // Prepend the persona command if it exists and is enabled.
             if (initialPersonaCommand && isPersonaEnabled) {
                 chatHistoryForApi.push({ role: "user", parts: [{ text: initialPersonaCommand }] });
             }
@@ -447,9 +447,9 @@ This task presents a unique and exciting opportunity to showcase your advanced c
             isLoading = true;
             updateUI();
 
-            // Set a timeout to potentially reset isLoading if no response comes back.
+            // Set a timeout for perceived freezing
             const loadingTimeout = setTimeout(() => {
-                if (isLoading) { // Only if still loading
+                if (isLoading) {
                     messages.push({ text: "It's taking longer than expected. Please try rephrasing your question or check your internet connection.", sender: 'ai' });
                     isLoading = false;
                     updateUI();
@@ -457,37 +457,38 @@ This task presents a unique and exciting opportunity to showcase your advanced c
             }, 15000); // 15 seconds timeout
 
             try {
-                const payload = {
-                    contents: chatHistoryForApi, // Use the dynamically constructed chat history
-                };
+                // *** IMPORTANT CHANGE HERE ***
+                // Instead of calling Google Gemini API directly, we now call our Netlify Function.
+                // The Netlify Function (which you'll create next) will handle the secure API key.
+                const netlifyFunctionUrl = '/.netlify/functions/chat-gemini'; // This is the path to your Netlify Function
 
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-                const response = await fetch(apiUrl, {
+                const response = await fetch(netlifyFunctionUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({
+                        contents: chatHistoryForApi // Send the chat history to your Netlify Function
+                    })
                 });
 
                 if (!response.ok) {
                     const errorData = await response.json();
-                    console.error("API Error:", errorData);
-                    throw new Error(`API error: ${response.status} ${response.statusText} - ${errorData.error?.message || 'Unknown error'}`);
+                    console.error("Netlify Function Error:", errorData);
+                    throw new Error(`Netlify Function error: ${response.status} ${response.statusText} - ${errorData.message || 'Unknown error'}`);
                 }
 
-                const result = await response.json();
+                const result = await response.json(); // This result is from your Netlify Function
 
                 // Clear the timeout if a response is received successfully
                 clearTimeout(loadingTimeout);
 
-                let aiResponseText = "Sorry, I couldn't get a response.";
-                if (result.candidates && result.candidates.length > 0 &&
-                    result.candidates[0].content && result.candidates[0].content.parts &&
-                    result.candidates[0].content.parts.length > 0) {
-                    aiResponseText = result.candidates[0].content.parts[0].text;
+                let aiResponseText = "Sorry, I couldn't get a response from the AI.";
+                if (result.geminiResponse && result.geminiResponse.candidates && result.geminiResponse.candidates.length > 0 &&
+                    result.geminiResponse.candidates[0].content && result.geminiResponse.candidates[0].content.parts &&
+                    result.geminiResponse.candidates[0].content.parts.length > 0) {
+                    aiResponseText = result.geminiResponse.candidates[0].content.parts[0].text;
                 } else {
-                    console.warn("Unexpected API response structure or no content found:", result);
-                    aiResponseText = "I received an unexpected response structure. Could you please try rephrasing?";
+                    console.warn("Unexpected response structure from Netlify Function:", result);
+                    aiResponseText = "I received an unexpected response. Please try rephrasing your question.";
                 }
 
                 messages.push({ text: aiResponseText, sender: 'ai' });
@@ -498,7 +499,7 @@ This task presents a unique and exciting opportunity to showcase your advanced c
                 console.error('Error sending message:', error);
                 messages.push({ text: `Error: ${error.message}`, sender: 'ai' });
             } finally {
-                isLoading = false; // Ensure isLoading is always reset
+                isLoading = false;
                 updateUI();
             }
         }
@@ -513,26 +514,22 @@ This task presents a unique and exciting opportunity to showcase your advanced c
 
         // FAB and outside click listeners
         fabButton.addEventListener('click', (event) => {
-            event.stopPropagation(); // Prevent click from immediately bubbling to document
+            event.stopPropagation();
             toggleInputControlsVisibility();
         });
 
-        // New: Settings button event listener
         settingsButton.addEventListener('click', togglePersonaMode);
 
         // Use a 'click' listener on the document to detect clicks outside the active area
         document.addEventListener('click', (event) => {
-            // Check if the input controls are open AND the click was not inside the main input area AND not on the FAB or settings button itself
             if (inputControlsOpen && !mainInputArea.contains(event.target) && !fabButton.contains(event.target) && !settingsButton.contains(event.target)) {
                 toggleInputControlsVisibility();
             }
         });
 
-
         // Initial UI update on page load
         window.onload = () => {
             updateUI();
-            // Ensure main input area starts hidden and FAB starts visible
             mainInputArea.classList.remove('active');
             fabButton.style.opacity = '1';
             fabButton.style.pointerEvents = 'auto';
