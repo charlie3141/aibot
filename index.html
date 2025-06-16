@@ -412,8 +412,10 @@
             }, 15000); // 15 seconds timeout
 
             try {
-                // IMPORTANT: Calling our Netlify Function endpoint which handles the secure API key.
-                const netlifyFunctionUrl = '/.netlify/functions/chat-gemini';
+                // IMPORTANT: When running in the Canvas environment, this relative path fails URL parsing.
+                // It should be '/.netlify/functions/chat-gemini' when deployed to Netlify.
+                // For local Canvas testing, use a placeholder like '/' or a full absolute URL if needed.
+                const netlifyFunctionUrl = '/.netlify/functions/chat-gemini'; // Revert to correct Netlify Function path
 
                 const response = await fetch(netlifyFunctionUrl, {
                     method: 'POST',
@@ -437,9 +439,9 @@
                 clearTimeout(loadingTimeout);
 
                 let aiResponseText = "Sorry, I couldn't get a response from the AI.";
-                // Check the expected structure from the Netlify Function's response
-                if (result.geminiResponse && result.geminiResponse.parts && result.geminiResponse.parts.length > 0) {
-                    aiResponseText = result.geminiResponse.parts[0].text;
+                // Corrected parsing: access content.parts from geminiResponse
+                if (result.geminiResponse && result.geminiResponse.content && result.geminiResponse.content.parts && result.geminiResponse.content.parts.length > 0) {
+                    aiResponseText = result.geminiResponse.content.parts[0].text;
                 } else {
                     console.warn("Unexpected response structure from Netlify Function:", result);
                     aiResponseText = "I received an unexpected response. Please try rephrasing your question.";
