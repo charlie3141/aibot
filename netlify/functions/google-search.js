@@ -65,7 +65,8 @@ exports.handler = async function(event, context) {
                         resultsForSummary += `Snippet: ${item.snippet || 'N/A'}\n`;
                         resultsForSummary += `URL: ${item.url || 'N/A'}\n\n`;
                     });
-
+                    aiSummary = resultsForSummary;
+                    
                     // Model for summarization (without tools, purely text generation)
                     const summarizeModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
@@ -114,15 +115,12 @@ exports.handler = async function(event, context) {
         } else {
             // This case should be rare with the updated logic, but as a fallback
             return {
-    statusCode: 200,
-    headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({ 
-    summary: aiSummary,
-    results: detailedSearchResults?.results || [] 
-}),
-
-};
-
+                statusCode: 200, 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    message: 'The AI could not generate a summary for your search.', 
+                    aiSummary: null 
+                }),
             };
         }
 
