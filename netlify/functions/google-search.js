@@ -45,7 +45,7 @@ exports.handler = async function(event, context) {
         const searchResponse = searchResult.response;
 
         let detailedSearchResults = null;
-        let aiSummary = null; // Will store raw results formatted as text
+        let aiSummary = null;
 
         // Extract raw search results if the tool was called and returned results
         if (searchResponse.toolResults && searchResponse.toolResults.length > 0) {
@@ -55,19 +55,41 @@ exports.handler = async function(event, context) {
                 console.log("Raw Google Search results obtained:", JSON.stringify(detailedSearchResults, null, 2));
 
                 if (detailedSearchResults && detailedSearchResults.results && detailedSearchResults.results.length > 0) {
-                    // Format the top 10 results directly for debugging
+                    // 2. Second step: Pass extracted search results to the AI for summarization.
+                    // We'll limit to the top 10 results to give more context to the AI.
                     const topResults = detailedSearchResults.results.slice(0, 10); 
                     
-                    let formattedResults = `Raw Top 10 Search Results for "${query}":\n\n`;
+                    let resultsForSummary = "Here are some web search results:\n\n";
                     topResults.forEach((item, index) => {
-                        formattedResults += `--- Result ${index + 1} ---\n`;
-                        formattedResults += `Title: ${item.source_title || 'N/A'}\n`;
-                        formattedResults += `Snippet: ${item.snippet || 'N/A'}\n`;
-                        formattedResults += `URL: ${item.url || 'N/A'}\n\n`;
+                        resultsForSummary += `Title: ${item.source_title || 'N/A'}\n`;
+                        resultsForSummary += `Snippet: ${item.snippet || 'N/A'}\n`;
+                        resultsForSummary += `URL: ${item.url || 'N/A'}\n\n`;
                     });
-                    aiSummary = formattedResults; // Assign formatted raw results to aiSummary
+
+                    // Model for summarization (without tools, purely text generation)
+                    const summarizeModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+                    const summarizeRequestPayload = {
+                        contents: [{
+                            role: "user",
+                            parts: [
+                                { text: `Based on the following web search results, provide a concise, direct, and factual summary IN ENGLISH. State clearly the current status or answer. If results are in another language, translate and summarize accurately in English. Do not include disclaimers about your knowledge cutoff.\n\n${resultsForSummary}` }
+                            ]
+                        }]
+                    };
+
+                    const summarizeResult = await summarizeModel.generateContent(summarizeRequestPayload);
+                    const summarizeResponse = summarizeResult.response;
+
+                    if (summarizeResponse.text()) {
+                        aiSummary = summarizeResponse.text();
+                        console.log("AI Summary generated from results:", aiSummary);
+                    } else {
+                        console.warn("Summarization model did not return text.");
+                        aiSummary = "The AI found results but could not summarize them concisely.";
+                    }
                 } else {
-                    aiSummary = "No relevant search results found on the web for the query.";
+                    aiSummary = "No relevant search results found on the web.";
                     console.log("No detailed search results found.");
                 }
             }
@@ -86,7 +108,7 @@ exports.handler = async function(event, context) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     aiSummary: aiSummary, 
-                    // detailedSearchResults: detailedSearchResults // Still included for logs, but not directly used by frontend now
+                    // detailedSearchResults: detailedSearchResults // Optionally include for debugging if needed
                 }), 
             };
         } else {
