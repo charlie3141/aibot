@@ -65,7 +65,7 @@ exports.handler = async function(event, context) {
                         resultsForSummary += `Snippet: ${item.snippet || 'N/A'}\n`;
                         resultsForSummary += `URL: ${item.url || 'N/A'}\n\n`;
                     });
-                    aiSummary = resultsForSummary;
+                    let dbaiSummary = resultsForSummary;
                     
                     // Model for summarization (without tools, purely text generation)
                     const summarizeModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
@@ -103,12 +103,12 @@ exports.handler = async function(event, context) {
             aiSummary = "The AI encountered an issue performing the search or finding relevant information.";
         }
 
-        if (aiSummary) {
+        if (dbaiSummary) {
             return {
                 statusCode: 200,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    aiSummary: aiSummary, 
+                    aiSummary: dbaiSummary, 
                     // detailedSearchResults: detailedSearchResults // Optionally include for debugging if needed
                 }), 
             };
