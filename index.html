@@ -155,9 +155,12 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
             </button>
-            <input type="text" id="message-input" class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0" placeholder="Type your message..." />
-            <button id="send-btn" class="px-6 py-3 bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 mt-2 sm:mt-0 rounded-lg">
+            <input type="text" id="message-input" class="flex-1 p-3 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0" placeholder="Type your message..." />
+            <button id="send-btn" class="px-6 py-3 bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 mt-2 sm:mt-0">
                 Send
+            </button>
+            <button id="search-btn" class="px-6 py-3 bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 mt-2 sm:mt-0 ml-2 rounded-r-lg">
+                Search
             </button>
         </div>
     </div>
@@ -182,6 +185,7 @@
         const initialMessageDiv = document.getElementById('initial-message');
         const messageInput = document.getElementById('message-input');
         const sendButton = document.getElementById('send-btn');
+        const searchButton = document.getElementById('search-btn'); // New: Search button
         const fileInput = document.getElementById('file-input');
         const uploadImageButton = document.getElementById('upload-image-btn');
         const imagePreviewContainer = document.getElementById('image-preview-container');
@@ -263,6 +267,7 @@
             const disableControls = isLoading || !inputControlsOpen;
             messageInput.disabled = disableControls;
             sendButton.disabled = disableControls;
+            searchButton.disabled = disableControls; // Disable search button too
             fileInput.disabled = disableControls;
             uploadImageButton.disabled = disableControls;
 
@@ -338,7 +343,7 @@
             updateUI();
         });
 
-        // Send message function - Now calls a Netlify Function endpoint
+        // Send message function (for general chat)
         async function sendMessage() {
             const inputText = messageInput.value.trim();
             if (inputText === '' && !selectedImageFile) return;
@@ -365,20 +370,13 @@
                 });
             }
 
-            // Create chat history for the API call
             let chatHistoryForApi = [];
-
-            // Prepend the persona command if it exists and is enabled.
             if (initialPersonaCommand && isPersonaEnabled) {
                 chatHistoryForApi.push({ role: "user", parts: [{ text: initialPersonaCommand }] });
             }
-
-            // Add previous messages to the API history
             messages.forEach(msg => {
                 const historyParts = [];
-                if (msg.text) {
-                    historyParts.push({ text: msg.text });
-                }
+                if (msg.text) historyParts.push({ text: msg.text });
                 if (msg.image && msg.base64Data) {
                      historyParts.push({
                         inlineData: {
@@ -390,11 +388,8 @@
                 }
                 chatHistoryForApi.push({ role: msg.sender === 'user' ? 'user' : 'model', parts: historyParts });
             });
-
-            // Add the current user message with potentially both text and image to the API history
             chatHistoryForApi.push({ role: "user", parts: userMessageParts });
 
-            // Add the user's message to the displayed chat (after constructing the API history)
             messages.push({ text: inputText, sender: 'user', image: imagePreviewUrl, base64Data: base64ImageData });
             messageInput.value = '';
             selectedImageFile = null;
@@ -402,44 +397,34 @@
             isLoading = true;
             updateUI();
 
-            // Set a timeout for perceived freezing
             const loadingTimeout = setTimeout(() => {
                 if (isLoading) {
                     messages.push({ text: "It's taking longer than expected. Please try rephrasing your question or check your internet connection.", sender: 'ai' });
                     isLoading = false;
                     updateUI();
                 }
-            }, 15000); // 15 seconds timeout
+            }, 15000);
 
             try {
-                // IMPORTANT: When running in the Canvas environment, this relative path fails URL parsing.
-                // It should be '/.netlify/functions/chat-gemini' when deployed to Netlify.
-                // For local Canvas testing, use a placeholder like '/' or a full absolute URL if needed.
-                const netlifyFunctionUrl = '/.netlify/functions/chat-gemini'; // Revert to correct Netlify Function path
+                const netlifyFunctionUrl = '/.netlify/functions/chat-gemini'; // Your existing chat function
 
                 const response = await fetch(netlifyFunctionUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: chatHistoryForApi // Send the chat history to your Netlify Function
-                    })
+                    body: JSON.stringify({ contents: chatHistoryForApi })
                 });
 
                 if (!response.ok) {
-                    // If the Netlify Function itself returns an error status (e.g., 500, 400)
-                    const errorData = await response.json(); // Attempt to parse error response as JSON
+                    const errorData = await response.json();
                     console.error("Netlify Function Error:", errorData);
                     throw new Error(`Netlify Function error: ${response.status} ${response.statusText} - ${errorData.message || JSON.stringify(errorData)}`);
                 }
 
-                // The Netlify Function should return JSON
                 const result = await response.json(); 
 
-                // Clear the timeout if a response is received successfully
                 clearTimeout(loadingTimeout);
 
                 let aiResponseText = "Sorry, I couldn't get a response from the AI.";
-                // Corrected parsing: access content.parts from geminiResponse
                 if (result.geminiResponse && result.geminiResponse.content && result.geminiResponse.content.parts && result.geminiResponse.content.parts.length > 0) {
                     aiResponseText = result.geminiResponse.content.parts[0].text;
                 } else {
@@ -450,7 +435,6 @@
                 messages.push({ text: aiResponseText, sender: 'ai' });
 
             } catch (error) {
-                // Clear the timeout even on error
                 clearTimeout(loadingTimeout);
                 console.error('Error sending message:', error);
                 messages.push({ text: `Error: ${error.message}`, sender: 'ai' });
@@ -460,11 +444,89 @@
             }
         }
 
+        // New function to handle Google Search
+        async function searchWeb() {
+            const searchQuery = messageInput.value.trim();
+            if (searchQuery === '') {
+                messages.push({ text: "Please enter a query to search the web.", sender: 'ai' });
+                updateUI();
+                return;
+            }
+
+            messages.push({ text: `Searching the web for "${searchQuery}"...`, sender: 'user' });
+            messageInput.value = '';
+            selectedImageFile = null; // Clear image if any
+            imagePreviewUrl = null;
+            isLoading = true;
+            updateUI();
+
+            const loadingTimeout = setTimeout(() => {
+                if (isLoading) {
+                    messages.push({ text: "Web search is taking longer than expected. Please try again.", sender: 'ai' });
+                    isLoading = false;
+                    updateUI();
+                }
+            }, 20000); // Give web search a bit more time, e.g., 20 seconds
+
+            try {
+                // Call the NEW Netlify Function specifically for Google Search
+                const netlifySearchFunctionUrl = '/.netlify/functions/google-search'; 
+
+                const response = await fetch(netlifySearchFunctionUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: searchQuery }) // Send just the query
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error("Netlify Search Function Error:", errorData);
+                    throw new Error(`Netlify Search Function error: ${response.status} ${response.statusText} - ${errorData.message || JSON.stringify(errorData)}`);
+                }
+
+                const result = await response.json(); 
+                clearTimeout(loadingTimeout);
+
+                let searchResponseText = "No relevant search results found.";
+                if (result.searchResults && result.searchResults.results && result.searchResults.results.length > 0) {
+                    searchResponseText = `Here's what I found for "${searchQuery}":\n\n`;
+                    result.searchResults.results.slice(0, 3).forEach((item, index) => { // Display top 3 results
+                        searchResponseText += `**${index + 1}. ${item.source_title || 'Unknown Source'}**: ${item.snippet}\n${item.url}\n\n`;
+                    });
+                    if (result.searchResults.results.length > 3) {
+                        searchResponseText += "...\n\n";
+                    }
+                } else if (result.aiSummary) {
+                    // If the function returns an AI-generated summary directly
+                    searchResponseText = result.aiSummary;
+                } else {
+                    console.warn("Unexpected search response structure:", result);
+                }
+
+                messages.push({ text: searchResponseText, sender: 'ai' });
+
+            } catch (error) {
+                clearTimeout(loadingTimeout);
+                console.error('Error during web search:', error);
+                messages.push({ text: `Error during web search: ${error.message}`, sender: 'ai' });
+            } finally {
+                isLoading = false;
+                updateUI();
+            }
+        }
+
+
         // Event Listeners
         sendButton.addEventListener('click', sendMessage);
+        searchButton.addEventListener('click', searchWeb); // New: Event listener for search button
         messageInput.addEventListener('keypress', (event) => {
             if (event.key === 'Enter') {
-                sendMessage();
+                // Determine whether to send a chat message or perform a search
+                if (event.target === messageInput) { // Check if the event originated from the message input
+                     // This simple logic defaults to sending a message on Enter.
+                     // You could add more complex logic here if needed, e.g., if a specific button was last focused.
+                    sendMessage();
+                }
             }
         });
 
