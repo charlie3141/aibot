@@ -114,12 +114,15 @@ exports.handler = async function(event, context) {
         } else {
             // This case should be rare with the updated logic, but as a fallback
             return {
-                statusCode: 200, 
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    message: 'The AI could not generate a summary for your search.', 
-                    aiSummary: null 
-                }),
+    statusCode: 200,
+    headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ 
+    summary: aiSummary,
+    results: detailedSearchResults?.results || [] 
+}),
+
+};
+
             };
         }
 
