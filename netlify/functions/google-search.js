@@ -23,11 +23,11 @@ exports.handler = async function(event, context) {
                 statusCode: 500,
                 body: JSON.stringify({ message: 'Server configuration error: API key not found for search.' }),
             };
-        }
+        };
 
         const genAI = new GoogleGenerativeAI(API_KEY);
-        // Initialize the GoogleSearch tool instance
-        const googleSearchTool = new GoogleSearch(); 
+        // Corrected: GoogleSearch is directly the tool object, not a constructor to be instantiated with 'new'.
+        const googleSearchTool = GoogleSearch; 
         
         // Use gemini-2.0-flash which supports tools, and explicitly provide the GoogleSearch tool
         const model = genAI.getGenerativeModel({ 
