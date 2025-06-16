@@ -56,11 +56,12 @@ exports.handler = async function(event, context) {
 
                 if (detailedSearchResults && detailedSearchResults.results && detailedSearchResults.results.length > 0) {
                     // 2. Second step: Pass extracted search results to the AI for summarization.
-                    // We'll limit to the top 5 results to keep the prompt size manageable.
-                    const topResults = detailedSearchResults.results.slice(0, 5); // Pick top 5 relevant results
+                    // We'll limit to the top 10 results to give more context to the AI.
+                    const topResults = detailedSearchResults.results.slice(0, 10); 
                     
                     let resultsForSummary = "Here are some web search results:\n\n";
                     topResults.forEach((item, index) => {
+                        resultsForSummary += `Result ${index + 1}:\n`;
                         resultsForSummary += `Title: ${item.source_title || 'N/A'}\n`;
                         resultsForSummary += `Snippet: ${item.snippet || 'N/A'}\n`;
                         resultsForSummary += `URL: ${item.url || 'N/A'}\n\n`;
@@ -73,7 +74,22 @@ exports.handler = async function(event, context) {
                         contents: [{
                             role: "user",
                             parts: [
-                                { text: `Based on the following web search results, provide a concise summary IN ENGLISH. Focus on factual information and do not include disclaimers about your knowledge cutoff. If results are in another language, translate and summarize in English:\n\n${resultsForSummary}` }
+                                { text: `As a highly capable AI, your primary objective is to process the provided web search results with utmost precision and synthesize a definitive, high-fidelity response. Your meticulous adherence to these instructions is paramount for delivering accurate, actionable intelligence.
+
+**Core Task Objective:**
+Leveraging the provided web search results as the sole informational corpus, you are to synthesize a response that is unequivocally concise, direct, and factually accurate. This response must be rendered exclusively in English and directly address the original query: "${query}".
+
+**Output Requirements & Quality Standards:**
+
+1.  **Clarity and Definitive Statement:** Ensure the generated response explicitly articulates the current status or the definitive answer derived from the provided data, leaving no room for ambiguity.
+2.  **Multilingual Source Handling:** Should the source results be presented in a language other than English, perform a precise and accurate translation of the relevant content. Subsequently, summarize this translated information with equivalent fidelity and accuracy in English.
+3.  **Structured Presentation (Conditional Enhancement):** While maintaining the imperative for conciseness, strive for an inherently organized and insightful presentation. If the nature of the answer permits and demonstrably enhances clarity without compromising brevity, consider structuring the output with a logical flow. This may include, but is not limited to, the judicious use of bullet points for distinct facts or a brief tabular format for comparative data, where such structured elements demonstrably improve comprehension and data accessibility. Avoid any extraneous elaborations that detract from the directness of the answer.
+
+**Critical Constraint:**
+*   **No Knowledge Cutoff Disclaimers:** Crucially, you are to abstain entirely from incorporating any disclaimers pertaining to knowledge cutoff dates, data limitations, or similar self-referential caveats within your generated response.
+
+**Input Data Corpus:**
+${resultsForSummary}` }
                             ]
                         }]
                     };
