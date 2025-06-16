@@ -34,28 +34,24 @@ exports.handler = async function(event, context) {
             tools: [googleSearchTool] 
         });
 
-        // 1. Explicitly invoke the Google Search tool using a function call in the prompt.
-        // This forces the model to use the tool, rather than deciding if it wants to.
+        // 1. Reverted to natural language prompt to let the model decide to use the tool.
+        // The model should use the 'google_search_search' tool based on this prompt.
         const searchRequestPayload = {
             contents: [{
                 role: "user",
-                parts: [{
-                    functionCall: {
-                        name: "google_search_search",
-                        args: { queries: [query] } // Pass the query directly to the search tool
-                    }
-                }] 
+                parts: [{ text: `Search the web for: "${query}".` }] 
             }]
         };
 
-        // This call should execute the tool automatically if the model decides to use it.
+        // This call, with the model configured with tools, should now execute the tool automatically
+        // and populate searchResponse.toolResults.
         const searchResult = await searchModel.generateContent(searchRequestPayload);
         const searchResponse = searchResult.response;
 
         let detailedSearchResults = null;
         let aiSummary = null; // This will now hold the raw formatted results for debugging
 
-        // Check for toolResults, which will contain the the output of the executed tool.
+        // Strictly check for toolResults, which will contain the output of the executed tool.
         if (searchResponse.toolResults && searchResponse.toolResults.length > 0) {
             const firstToolResult = searchResponse.toolResults[0];
             
@@ -87,12 +83,12 @@ exports.handler = async function(event, context) {
                 console.warn("Expected google_search_search tool call but got:", firstToolResult.functionCall?.name, JSON.stringify(searchResponse, null, 2));
             }
         } else {
-            // This case should now be less frequent as we are explicitly forcing a functionCall
-            aiSummary = "The AI did not return expected tool results. There might be an issue with tool execution.";
+            // This case now means the model did NOT decide to use the tool, and might have replied with text directly.
+            aiSummary = "The AI did not perform a Google Search tool call (model chose not to use it).";
             if (searchResponse.text()) {
                 aiSummary += ` Direct AI text response: "${searchResponse.text()}"`; // Include direct AI text for more context
             }
-            console.warn("No toolResults found after explicit functionCall attempt:", JSON.stringify(searchResponse, null, 2));
+            console.warn("No toolResults found after natural language prompt. Model might not have used the tool. Full response:", JSON.stringify(searchResponse, null, 2));
         }
 
         if (aiSummary) {
