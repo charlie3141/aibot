@@ -33,11 +33,17 @@ exports.handler = async function(event, context) {
             tools: [googleSearchTool] 
         });
 
-        // 1. Perform the web search using the tool.
+        // 1. Explicitly invoke the Google Search tool using a function call in the prompt.
+        // This forces the model to use the tool, rather than deciding if it wants to.
         const searchRequestPayload = {
             contents: [{
                 role: "user",
-                parts: [{ text: `Perform a web search for: "${query}".` }] 
+                parts: [{
+                    functionCall: {
+                        name: "google_search_search",
+                        args: { queries: [query] }
+                    }
+                }] 
             }]
         };
 
@@ -77,12 +83,12 @@ exports.handler = async function(event, context) {
                 console.warn("Expected google_search_search tool call but got:", firstToolResult.functionCall?.name, JSON.stringify(searchResponse, null, 2));
             }
         } else {
-            // If no toolResults are found, or if the model simply provided a text response instead of a tool call
-            aiSummary = "The AI did not perform a Google Search tool call. It may have attempted to answer directly or found no relevant tool invocation.";
+            // This case should now be less frequent as we are explicitly forcing a functionCall
+            aiSummary = "The AI did not return expected tool results. There might be an issue with tool execution.";
             if (searchResponse.text()) {
                 aiSummary += ` Direct AI text response: "${searchResponse.text()}"`; // Include direct AI text for more context
             }
-            console.warn("Neither toolResults nor direct text indicating a search tool call found in initial search response:", JSON.stringify(searchResponse, null, 2));
+            console.warn("Neither toolResults found after explicit functionCall attempt:", JSON.stringify(searchResponse, null, 2));
         }
 
         if (aiSummary) {
