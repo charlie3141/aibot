@@ -1,7 +1,8 @@
 // netlify/functions/google-search.js
 
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { GoogleSearch } = require('@google/generative-ai/tools'); // Import the GoogleSearch tool
+// Import necessary modules
+// The GoogleSearch tool is part of the main @google/generative-ai package
+const { GoogleGenerativeAI, GoogleSearch } = require('@google/generative-ai');
 
 exports.handler = async function(event, context) {
     if (event.httpMethod !== 'POST') {
@@ -25,7 +26,7 @@ exports.handler = async function(event, context) {
         }
 
         const genAI = new GoogleGenerativeAI(API_KEY);
-        // Initialize the GoogleSearch tool
+        // Initialize the GoogleSearch tool instance
         const googleSearchTool = new GoogleSearch(); 
         
         // Use gemini-2.0-flash which supports tools, and explicitly provide the GoogleSearch tool
@@ -35,7 +36,6 @@ exports.handler = async function(event, context) {
         });
 
         // Build the payload to tell the AI to use the google_search tool directly
-        // This is a direct invocation of the tool through the model's generateContent
         const requestPayload = {
             contents: [{
                 role: "user",
@@ -45,10 +45,6 @@ exports.handler = async function(event, context) {
 
         const result = await model.generateContent(requestPayload);
         const response = result.response;
-
-        // The response should contain the actual tool output if the model decides to use it and the environment executes it.
-        // The GoogleSearch tool (from @google/generative-ai/tools) will directly return search results.
-        // We need to check for the output in the `toolResults` property of the response.
 
         let searchResults = null;
         let aiSummary = null;
