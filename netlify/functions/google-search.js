@@ -33,7 +33,7 @@ exports.handler = async function(event, context) {
             tools: [googleSearchTool] 
         });
 
-        // 1. First step: Ask the model to perform a web search using the tool.
+        // 1. Perform the web search using the tool.
         const searchRequestPayload = {
             contents: [{
                 role: "user",
@@ -45,8 +45,7 @@ exports.handler = async function(event, context) {
         const searchResponse = searchResult.response;
 
         let detailedSearchResults = null;
-        let aiSummary = null;
-        let dbaiSummary = null;
+        let aiSummary = null; // This will now hold the raw formatted results for debugging
 
         // Extract raw search results if the tool was called and returned results
         if (searchResponse.toolResults && searchResponse.toolResults.length > 0) {
@@ -56,61 +55,42 @@ exports.handler = async function(event, context) {
                 console.log("Raw Google Search results obtained:", JSON.stringify(detailedSearchResults, null, 2));
 
                 if (detailedSearchResults && detailedSearchResults.results && detailedSearchResults.results.length > 0) {
-                    // 2. Second step: Pass extracted search results to the AI for summarization.
-                    // We'll limit to the top 10 results to give more context to the AI.
+                    // Debugging mode: Format the top 10 results directly for display
                     const topResults = detailedSearchResults.results.slice(0, 10); 
                     
-                    let resultsForSummary = "Here are some web search results:\n\n";
+                    let formattedResults = `--- Raw Top ${topResults.length} Search Results for "${query}" ---\n\n`;
                     topResults.forEach((item, index) => {
-                        resultsForSummary += `Title: ${item.source_title || 'N/A'}\n`;
-                        resultsForSummary += `Snippet: ${item.snippet || 'N/A'}\n`;
-                        resultsForSummary += `URL: ${item.url || 'N/A'}\n\n`;
+                        formattedResults += `**${index + 1}. ${item.source_title || 'N/A'}**\n`;
+                        formattedResults += `Snippet: ${item.snippet || 'N/A'}\n`;
+                        formattedResults += `URL: ${item.url || 'N/A'}\n\n`;
                     });
-                    dbaiSummary = resultsForSummary;
-                    
-                    // Model for summarization (without tools, purely text generation)
-                    const summarizeModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+                    aiSummary = formattedResults; // Assign formatted raw results to aiSummary
+                    console.log("Formatted raw results for AI Summary:", aiSummary);
 
-                    const summarizeRequestPayload = {
-                        contents: [{
-                            role: "user",
-                            parts: [
-                                { text: `Based on the following web search results, provide a concise, direct, and factual summary IN ENGLISH. State clearly the current status or answer. If results are in another language, translate and summarize accurately in English. Do not include disclaimers about your knowledge cutoff.\n\n${resultsForSummary}` }
-                            ]
-                        }]
-                    };
-
-                    const summarizeResult = await summarizeModel.generateContent(summarizeRequestPayload);
-                    const summarizeResponse = summarizeResult.response;
-
-                    if (summarizeResponse.text()) {
-                        aiSummary = summarizeResponse.text();
-                        console.log("AI Summary generated from results:", aiSummary);
-                    } else {
-                        console.warn("Summarization model did not return text.");
-                        aiSummary = "The AI found results but could not summarize them concisely.";
-                    }
                 } else {
-                    aiSummary = "No relevant search results found on the web.";
-                    console.log("No detailed search results found.");
+                    aiSummary = "No relevant search results found on the web for the query.";
+                    console.log("No detailed search results found in the tool response.");
                 }
+            } else {
+                aiSummary = "The AI did not perform a Google Search tool call or the tool call was unexpected.";
+                console.warn("Expected google_search_search tool call but got:", firstToolResult.functionCall?.name, JSON.stringify(searchResponse, null, 2));
             }
         } else if (searchResponse.text()) {
              // Fallback: If the initial response directly contains text (e.g., AI decided not to use tool, or directly answered)
              aiSummary = searchResponse.text();
-             console.log("Initial AI response without tool invocation:", aiSummary);
+             console.log("Initial AI response without tool invocation (text directly from model):", aiSummary);
         } else {
             console.warn("Neither toolResults nor direct text found in initial search response:", JSON.stringify(searchResponse, null, 2));
             aiSummary = "The AI encountered an issue performing the search or finding relevant information.";
         }
 
-        if (dbaiSummary) {
+        if (aiSummary) {
             return {
                 statusCode: 200,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    aiSummary: dbaiSummary, 
-                    // detailedSearchResults: detailedSearchResults // Optionally include for debugging if needed
+                    aiSummary: aiSummary, 
+                    // detailedSearchResults: detailedSearchResults // Not directly used by frontend now, but available for internal logging
                 }), 
             };
         } else {
