@@ -46,6 +46,7 @@ exports.handler = async function(event, context) {
 
         let detailedSearchResults = null;
         let aiSummary = null;
+        let dbaiSummary = null;
 
         // Extract raw search results if the tool was called and returned results
         if (searchResponse.toolResults && searchResponse.toolResults.length > 0) {
@@ -65,7 +66,7 @@ exports.handler = async function(event, context) {
                         resultsForSummary += `Snippet: ${item.snippet || 'N/A'}\n`;
                         resultsForSummary += `URL: ${item.url || 'N/A'}\n\n`;
                     });
-                    let dbaiSummary = resultsForSummary;
+                    dbaiSummary = resultsForSummary;
                     
                     // Model for summarization (without tools, purely text generation)
                     const summarizeModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
