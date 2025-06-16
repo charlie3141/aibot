@@ -37,10 +37,11 @@ exports.handler = async function(event, context) {
 
         // Build the payload to tell the AI to use the google_search tool directly
         // We explicitly ask the model to perform a search AND summarize the top results.
+        // Added explicit instruction for ENGLISH summary.
         const requestPayload = {
             contents: [{
                 role: "user",
-                parts: [{ text: `Perform a web search for: "${query}". Provide a concise summary of the top results.` }] 
+                parts: [{ text: `Perform a web search for: "${query}". Provide a concise summary of the top results IN ENGLISH.` }] 
             }]
         };
 
