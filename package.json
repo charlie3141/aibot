@@ -1,16 +1,18 @@
-{
-  "name": "aibdzai",
-  "version": "1.0.0",
-  "description": "A simple AI chatbot deployed on Netlify.",
-  "main": "index.js",
-  "scripts": {
-    "start": "echo 'No specific start script for static site'",
-    "build": "echo 'No specific build step for static site, handled by Netlify Functions'"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "@google/generative-ai": "^0.11.4"
-  }
-}
+    {
+      "name": "aibdzai",
+      "version": "1.0.0",
+      "description": "A simple AI chatbot deployed on Netlify.",
+      "main": "index.js",
+      "scripts": {
+        "start": "echo 'No specific start script for static site'",
+        "build": "echo 'No specific build step for static site, handled by Netlify Functions'"
+      },
+      "keywords": [],
+      "author": "",
+      "license": "ISC",
+      "dependencies": {
+        "@google/generative-ai": "^0.11.4",
+        "@google/generative-ai/tools": "^0.11.4"
+      }
+    }
+    
