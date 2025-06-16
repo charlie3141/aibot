@@ -25,8 +25,8 @@ exports.handler = async function(event, context) {
         };
 
         const genAI = new GoogleGenerativeAI(API_KEY);
-        // Correct way to get the tool's functionality for direct use
-        const googleSearchTool = GoogleSearch; 
+        // Corrected: Instantiate GoogleSearch using 'new'
+        const googleSearchTool = new GoogleSearch(); 
         
         // --- DEBUGGING MODE: DIRECTLY CALL THE SEARCH TOOL ---
         // We are now bypassing the model's decision-making to ensure the search tool is used.
