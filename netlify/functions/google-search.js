@@ -1,7 +1,6 @@
 // netlify/functions/google-search.js
 
 // Import necessary modules
-// The GoogleSearch tool is part of the main @google/generative-ai package
 const { GoogleGenerativeAI, GoogleSearch } = require('@google/generative-ai');
 
 exports.handler = async function(event, context) {
@@ -15,7 +14,7 @@ exports.handler = async function(event, context) {
     try {
         const { query } = JSON.parse(event.body);
 
-        const API_KEY = process.env.GEMINI_API_KEY; // Using the same API key, but for google_search tool
+        const API_KEY = process.env.GEMINI_API_KEY;
 
         if (!API_KEY) {
             console.error("GEMINI_API_KEY environment variable is not set for google-search function.");
@@ -23,53 +22,85 @@ exports.handler = async function(event, context) {
                 statusCode: 500,
                 body: JSON.stringify({ message: 'Server configuration error: API key not found for search.' }),
             };
-        };
+        }
 
         const genAI = new GoogleGenerativeAI(API_KEY);
-        // Corrected: GoogleSearch is directly the tool object, not a constructor to be instantiated with 'new'.
         const googleSearchTool = GoogleSearch; 
         
-        // Use gemini-2.0-flash which supports tools, and explicitly provide the GoogleSearch tool
-        const model = genAI.getGenerativeModel({ 
+        // Model for performing the search (with the tool)
+        const searchModel = genAI.getGenerativeModel({ 
             model: "gemini-2.0-flash",
-            tools: [googleSearchTool] // Provide the tool directly to the model instance
+            tools: [googleSearchTool] 
         });
 
-        // Build the payload to tell the AI to use the google_search tool directly
-        // We explicitly ask the model to perform a search AND summarize the top results.
-        // Added explicit instruction for ENGLISH summary.
-        const requestPayload = {
+        // 1. First step: Ask the model to perform a web search using the tool.
+        const searchRequestPayload = {
             contents: [{
                 role: "user",
-                parts: [{ text: `Perform a web search for: "${query}". Provide a concise summary of the top results IN ENGLISH.` }] 
+                parts: [{ text: `Perform a web search for: "${query}".` }] 
             }]
         };
 
-        const result = await model.generateContent(requestPayload);
-        const response = result.response;
+        const searchResult = await searchModel.generateContent(searchRequestPayload);
+        const searchResponse = searchResult.response;
 
+        let detailedSearchResults = null;
         let aiSummary = null;
-        let detailedSearchResults = null; // We can keep this if needed for debugging/future display
 
-        // Check for AI-generated text summary first
-        if (response.text()) {
-            aiSummary = response.text();
-            console.log("AI Summary received:", aiSummary);
-        }
-
-        // Optionally, if you still want to inspect raw tool results (e.g., for debugging)
-        // Note: `toolResults` are typically present if the model explicitly suggests a tool call
-        // and it's then executed and the results are passed back to `generateContent` in a subsequent turn.
-        // When using `tools: [GoogleSearchTool]` on `getGenerativeModel`, the library often handles
-        // the tool execution and result integration transparently, leading directly to `response.text()`.
-        if (response.toolResults && response.toolResults.length > 0) {
-            console.log("Raw toolResults (for debugging):", JSON.stringify(response.toolResults, null, 2));
-            const firstToolResult = response.toolResults[0];
+        // Extract raw search results if the tool was called and returned results
+        if (searchResponse.toolResults && searchResponse.toolResults.length > 0) {
+            const firstToolResult = searchResponse.toolResults[0];
             if (firstToolResult.functionCall && firstToolResult.functionCall.name === "google_search_search") {
-                 detailedSearchResults = firstToolResult.functionResponse.json();
-            }
-        }
+                detailedSearchResults = firstToolResult.functionResponse.json();
+                console.log("Raw Google Search results obtained:", JSON.stringify(detailedSearchResults, null, 2));
 
+                if (detailedSearchResults && detailedSearchResults.results && detailedSearchResults.results.length > 0) {
+                    // 2. Second step: Pass extracted search results to the AI for summarization.
+                    // We'll limit to the top 5 results to keep the prompt size manageable.
+                    const topResults = detailedSearchResults.results.slice(0, 5); // Pick top 5 relevant results
+                    
+                    let resultsForSummary = "Here are some web search results:\n\n";
+                    topResults.forEach((item, index) => {
+                        resultsForSummary += `Title: ${item.source_title || 'N/A'}\n`;
+                        resultsForSummary += `Snippet: ${item.snippet || 'N/A'}\n`;
+                        resultsForSummary += `URL: ${item.url || 'N/A'}\n\n`;
+                    });
+
+                    // Model for summarization (without tools, purely text generation)
+                    const summarizeModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+                    const summarizeRequestPayload = {
+                        contents: [{
+                            role: "user",
+                            parts: [
+                                { text: `Based on the following web search results, provide a concise summary IN ENGLISH. Focus on factual information and do not include disclaimers about your knowledge cutoff. If results are in another language, translate and summarize in English:\n\n${resultsForSummary}` }
+                            ]
+                        }]
+                    };
+
+                    const summarizeResult = await summarizeModel.generateContent(summarizeRequestPayload);
+                    const summarizeResponse = summarizeResult.response;
+
+                    if (summarizeResponse.text()) {
+                        aiSummary = summarizeResponse.text();
+                        console.log("AI Summary generated from results:", aiSummary);
+                    } else {
+                        console.warn("Summarization model did not return text.");
+                        aiSummary = "The AI found results but could not summarize them concisely.";
+                    }
+                } else {
+                    aiSummary = "No relevant search results found on the web.";
+                    console.log("No detailed search results found.");
+                }
+            }
+        } else if (searchResponse.text()) {
+             // Fallback: If the initial response directly contains text (e.g., AI decided not to use tool, or directly answered)
+             aiSummary = searchResponse.text();
+             console.log("Initial AI response without tool invocation:", aiSummary);
+        } else {
+            console.warn("Neither toolResults nor direct text found in initial search response:", JSON.stringify(searchResponse, null, 2));
+            aiSummary = "The AI encountered an issue performing the search or finding relevant information.";
+        }
 
         if (aiSummary) {
             return {
@@ -77,25 +108,23 @@ exports.handler = async function(event, context) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     aiSummary: aiSummary, 
-                    searchResults: detailedSearchResults // Include detailed results if available, for frontend to process
+                    // detailedSearchResults: detailedSearchResults // Optionally include for debugging if needed
                 }), 
             };
         } else {
-            console.warn("No AI summary received for search query:", query, "Full Gemini API Response:", JSON.stringify(response, null, 2));
+            // This case should be rare with the updated logic, but as a fallback
             return {
-                statusCode: 200, // Still return 200, but indicate no successful AI summary
+                statusCode: 200, 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    message: 'The AI did not generate a summary for your search. This might mean no relevant results were found, or there was an issue processing them.', 
-                    searchResults: detailedSearchResults, // Still pass along raw results if any
+                    message: 'The AI could not generate a summary for your search.', 
                     aiSummary: null 
                 }),
             };
         }
 
     } catch (error) {
-        console.error('Detailed Error in Netlify Google Search Function:', error); // Log the full error object
-        // Return a more descriptive error message to the frontend
+        console.error('Detailed Error in Netlify Google Search Function:', error);
         return {
             statusCode: 500,
             body: JSON.stringify({ 
