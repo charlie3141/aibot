@@ -47,7 +47,7 @@ exports.handler = async function(event, context) {
         let detailedSearchResults = null;
         let aiSummary = null; // This will now hold the raw formatted results for debugging
 
-        // Extract raw search results if the tool was called and returned results
+        // Extract raw search results ONLY if the tool was called and returned results
         if (searchResponse.toolResults && searchResponse.toolResults.length > 0) {
             const firstToolResult = searchResponse.toolResults[0];
             if (firstToolResult.functionCall && firstToolResult.functionCall.name === "google_search_search") {
@@ -72,16 +72,17 @@ exports.handler = async function(event, context) {
                     console.log("No detailed search results found in the tool response.");
                 }
             } else {
-                aiSummary = "The AI did not perform a Google Search tool call or the tool call was unexpected.";
+                // If a tool call occurred but it wasn't the expected google_search_search tool
+                aiSummary = `The AI called an unexpected tool: ${firstToolResult.functionCall?.name || 'unknown'}.`;
                 console.warn("Expected google_search_search tool call but got:", firstToolResult.functionCall?.name, JSON.stringify(searchResponse, null, 2));
             }
-        } else if (searchResponse.text()) {
-             // Fallback: If the initial response directly contains text (e.g., AI decided not to use tool, or directly answered)
-             aiSummary = searchResponse.text();
-             console.log("Initial AI response without tool invocation (text directly from model):", aiSummary);
         } else {
-            console.warn("Neither toolResults nor direct text found in initial search response:", JSON.stringify(searchResponse, null, 2));
-            aiSummary = "The AI encountered an issue performing the search or finding relevant information.";
+            // If no toolResults are found, or if the model simply provided a text response instead of a tool call
+            aiSummary = "The AI did not perform a Google Search tool call. It may have attempted to answer directly or found no relevant tool invocation.";
+            if (searchResponse.text()) {
+                aiSummary += ` Direct AI text response: "${searchResponse.text()}"`; // Include direct AI text for more context
+            }
+            console.warn("Neither toolResults nor direct text indicating a search tool call found in initial search response:", JSON.stringify(searchResponse, null, 2));
         }
 
         if (aiSummary) {
