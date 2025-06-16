@@ -36,54 +36,71 @@ exports.handler = async function(event, context) {
         });
 
         // Build the payload to tell the AI to use the google_search tool directly
+        // We explicitly ask the model to perform a search AND summarize the top results.
         const requestPayload = {
             contents: [{
                 role: "user",
-                parts: [{ text: `Perform a web search for: ${query}` }] 
+                parts: [{ text: `Perform a web search for: "${query}". Provide a concise summary of the top results.` }] 
             }]
         };
 
         const result = await model.generateContent(requestPayload);
         const response = result.response;
 
-        let searchResults = null;
         let aiSummary = null;
+        let detailedSearchResults = null; // We can keep this if needed for debugging/future display
 
+        // Check for AI-generated text summary first
         if (response.text()) {
-            aiSummary = response.text(); // Capture any AI-generated summary text
+            aiSummary = response.text();
+            console.log("AI Summary received:", aiSummary);
         }
 
+        // Optionally, if you still want to inspect raw tool results (e.g., for debugging)
+        // Note: `toolResults` are typically present if the model explicitly suggests a tool call
+        // and it's then executed and the results are passed back to `generateContent` in a subsequent turn.
+        // When using `tools: [GoogleSearchTool]` on `getGenerativeModel`, the library often handles
+        // the tool execution and result integration transparently, leading directly to `response.text()`.
         if (response.toolResults && response.toolResults.length > 0) {
-            // Assuming the first tool result is from our Google Search
+            console.log("Raw toolResults (for debugging):", JSON.stringify(response.toolResults, null, 2));
             const firstToolResult = response.toolResults[0];
             if (firstToolResult.functionCall && firstToolResult.functionCall.name === "google_search_search") {
-                // The actual search results are in `firstToolResult.functionResponse.json()`
-                // The structure for Google Search is typically `perQueryResult` array
-                searchResults = firstToolResult.functionResponse.json();
-                console.log("Google Search results obtained:", JSON.stringify(searchResults, null, 2));
+                 detailedSearchResults = firstToolResult.functionResponse.json();
             }
         }
 
-        if (searchResults && searchResults.results && searchResults.results.length > 0) {
+
+        if (aiSummary) {
             return {
                 statusCode: 200,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ searchResults: searchResults, aiSummary: aiSummary }), // Return searchResults
+                body: JSON.stringify({ 
+                    aiSummary: aiSummary, 
+                    searchResults: detailedSearchResults // Include detailed results if available, for frontend to process
+                }), 
             };
         } else {
-            console.warn("No search results or no specific toolResults found for query:", query, "Response:", JSON.stringify(response, null, 2));
+            console.warn("No AI summary received for search query:", query, "Full Gemini API Response:", JSON.stringify(response, null, 2));
             return {
-                statusCode: 200, // Still return 200, but indicate no results
+                statusCode: 200, // Still return 200, but indicate no successful AI summary
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: 'No relevant search results found.', searchResults: null, aiSummary: aiSummary }),
+                body: JSON.stringify({ 
+                    message: 'The AI did not generate a summary for your search. This might mean no relevant results were found, or there was an issue processing them.', 
+                    searchResults: detailedSearchResults, // Still pass along raw results if any
+                    aiSummary: null 
+                }),
             };
         }
 
     } catch (error) {
-        console.error('Error in Netlify Google Search Function:', error);
+        console.error('Detailed Error in Netlify Google Search Function:', error); // Log the full error object
+        // Return a more descriptive error message to the frontend
         return {
             statusCode: 500,
-            body: JSON.stringify({ message: 'Error performing web search', error: error.message }),
+            body: JSON.stringify({ 
+                message: `Error performing web search: ${error.message || 'An unknown error occurred.'}`, 
+                errorDetails: error.toString() 
+            }),
         };
     }
 };
