@@ -28,34 +28,33 @@ exports.handler = async function(event, context) {
         const googleSearchTool = GoogleSearch; 
         
         // Model for performing the search (with the tool)
+        // Ensure GoogleSearch tool is provided to the model.
         const searchModel = genAI.getGenerativeModel({ 
             model: "gemini-2.0-flash",
             tools: [googleSearchTool] 
         });
 
-        // 1. Explicitly invoke the Google Search tool using a function call in the prompt.
-        // This forces the model to use the tool, rather than deciding if it wants to.
+        // 1. Natural language prompt to encourage the AI to use the search tool.
+        // The model will decide if and how to use the 'google_search_search' tool.
         const searchRequestPayload = {
             contents: [{
                 role: "user",
-                parts: [{
-                    functionCall: {
-                        name: "google_search_search",
-                        args: { queries: [query] }
-                    }
-                }] 
+                parts: [{ text: `Search the web for: "${query}".` }] 
             }]
         };
 
+        // This call should execute the tool automatically if the model decides to use it.
         const searchResult = await searchModel.generateContent(searchRequestPayload);
         const searchResponse = searchResult.response;
 
         let detailedSearchResults = null;
         let aiSummary = null; // This will now hold the raw formatted results for debugging
 
-        // Extract raw search results ONLY if the tool was called and returned results
+        // Check for toolResults, which will contain the output of the executed tool.
         if (searchResponse.toolResults && searchResponse.toolResults.length > 0) {
             const firstToolResult = searchResponse.toolResults[0];
+            
+            // Verify that the tool executed was indeed google_search_search
             if (firstToolResult.functionCall && firstToolResult.functionCall.name === "google_search_search") {
                 detailedSearchResults = firstToolResult.functionResponse.json();
                 console.log("Raw Google Search results obtained:", JSON.stringify(detailedSearchResults, null, 2));
@@ -79,16 +78,16 @@ exports.handler = async function(event, context) {
                 }
             } else {
                 // If a tool call occurred but it wasn't the expected google_search_search tool
-                aiSummary = `The AI called an unexpected tool: ${firstToolResult.functionCall?.name || 'unknown'}.`;
+                aiSummary = `The AI used an unexpected tool: ${firstToolResult.functionCall?.name || 'unknown'}.`;
                 console.warn("Expected google_search_search tool call but got:", firstToolResult.functionCall?.name, JSON.stringify(searchResponse, null, 2));
             }
         } else {
-            // This case should now be less frequent as we are explicitly forcing a functionCall
-            aiSummary = "The AI did not return expected tool results. There might be an issue with tool execution.";
+            // This case occurs if the model did NOT decide to use the tool, and might have replied with text directly.
+            aiSummary = "The AI did not perform a Google Search tool call (model chose not to use it).";
             if (searchResponse.text()) {
                 aiSummary += ` Direct AI text response: "${searchResponse.text()}"`; // Include direct AI text for more context
             }
-            console.warn("Neither toolResults found after explicit functionCall attempt:", JSON.stringify(searchResponse, null, 2));
+            console.warn("No toolResults found. Model might not have used the tool. Full response:", JSON.stringify(searchResponse, null, 2));
         }
 
         if (aiSummary) {
